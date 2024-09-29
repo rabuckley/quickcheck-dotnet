@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <WarningsAsErrors>Nullable</WarningsAsErrors>
+
+        <IsPackable>true</IsPackable>
+       
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <PackageId>QuickCheck</PackageId>
+        <Version>0.0.1</Version>
+        <Authors>Ryan Buckley</Authors>
+        <PackageTags>QuickCheck, Fuzzer, Testing</PackageTags>
+    </PropertyGroup>
+
+</Project>
