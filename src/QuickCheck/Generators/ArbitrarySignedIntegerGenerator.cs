@@ -54,7 +54,7 @@ public class ArbitrarySignedIntegerGenerator<T> : ArbitraryValueGenerator<T>
 
             List<T> items = [T.Zero];
 
-            if (shrinker._diff < T.Zero && shrinker._from != T.MaxValue)
+            if (shrinker._diff < T.Zero && shrinker._from != T.MinValue)
             {
                 // If half is negative and current is not the max value, add the positive value of current.
                 items.Add(T.Abs(shrinker._from));

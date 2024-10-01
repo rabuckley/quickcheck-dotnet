@@ -74,15 +74,34 @@ public sealed class QuickChecker
         return TestResult.CreateSuccess<TInput>(default!);
     }
 
-    // // T1, T2
-    // public TestResult<(T1, T2)> Run<T1, T2, TOutput>(Func<T1, T2, TOutput> target, Func<TOutput, bool> validate)
-    //     where T1 : IComparable<T1>
-    //     where T2 : IComparable<T2>
-    // {
-    //     ReadOnlySpan<Type> argTypes = [typeof(T1), typeof(T2)];
-    //     return Run(argTypes, target, validate);
-    // }
+    // T1, T2
+    public TestResult<(T1, T2)> Run<T1, T2, TOutput>(Func<T1, T2, TOutput> target, Func<TOutput, bool> validate)
+    {
+        var g1 = (IArbitraryValueGenerator<T1>)_generators[typeof(T1)];
+        var g2 = (IArbitraryValueGenerator<T2>)_generators[typeof(T2)];
 
+        var generator = new ArbitraryTupleGenerator<T1, T2>(g1, g2, Random.Shared);
+        _generators.Add(typeof((T1, T2)), generator);
+
+        return Run<(T1, T2), TOutput>(Func, validate);
+        TOutput Func((T1, T2) tuple) => target(tuple.Item1, tuple.Item2);
+    }
+
+    // T1, T2, T3
+    public TestResult<(T1, T2, T3)> Run<T1, T2, T3, TOutput>(
+        Func<T1, T2, T3, TOutput> target,
+        Func<TOutput, bool> validate)
+    {
+        var g1 = (IArbitraryValueGenerator<T1>)_generators[typeof(T1)];
+        var g2 = (IArbitraryValueGenerator<T2>)_generators[typeof(T2)];
+        var g3 = (IArbitraryValueGenerator<T3>)_generators[typeof(T3)];
+
+        var generator = new ArbitraryTupleGenerator<T1, T2, T3>(g1, g2, g3, Random.Shared);
+        _generators.Add(typeof((T1, T2, T3)), generator);
+
+        return Run<(T1, T2, T3), TOutput>(Func, validate);
+        TOutput Func((T1, T2, T3) tuple) => target(tuple.Item1, tuple.Item2, tuple.Item3);
+    }
 
     private static TestResult<TInput> RunCore<TInput, TOutput>(
         Func<TInput, TOutput> target,
