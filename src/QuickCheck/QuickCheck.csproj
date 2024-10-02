@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net9.0</TargetFramework>
@@ -9,15 +9,17 @@
         <WarningsAsErrors>Nullable</WarningsAsErrors>
 
         <IsPackable>true</IsPackable>
-       
+
         <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <PropertyGroup>
         <PackageId>QuickCheck</PackageId>
-        <Version>0.0.1</Version>
+        <Version>0.0.2</Version>
         <Authors>Ryan Buckley</Authors>
-        <PackageTags>QuickCheck, Fuzzer, Testing</PackageTags>
+        <PackageTags>QuickCheck, Fuzz, Fuzzer, Testing</PackageTags>
+        <PackageProjectUrl>https://github.com/rabuckley/quickcheck-dotnet</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/rabuckley/quickcheck-dotnet</RepositoryUrl>
     </PropertyGroup>
 
 </Project>
