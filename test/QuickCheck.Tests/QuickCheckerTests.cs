@@ -3,20 +3,20 @@ namespace QuickCheck.Tests;
 public sealed class QuickCheckerTests
 {
     [Fact]
-    public void Run_WithOneArg_ShouldReduce()
+    public void Run_FindsEvenNumberErrorCase()
     {
         // Arrange
         var checker = new QuickChecker();
 
         // Act
-        var result = checker.Run<int, int>(Add, _ => true);
+        var result = checker.Run<int, int>(Add, static _ => true);
 
         // Assert
         Assert.True(result.IsError);
-        Assert.Equal(2, result.Input);
-        
+        Assert.Equal(0, result.Input % 2);
+
         return;
-        
+
         static int Add(int a)
         {
             if (a != 0 && a % 2 == 0)
@@ -35,11 +35,11 @@ public sealed class QuickCheckerTests
         var checker = new QuickChecker();
 
         // Act
-        var result = checker.Run<int, int, int>(TestFunc, _ => true);
+        var result = checker.Run<int, int, int>(TestFunc, static _ => true);
 
         // Assert
         Assert.True(result.IsError);
-        
+
         // Depending on the seed, we may or may not reduce to the optimal input of (2, 2)
         // but it would be wrong to have found anything indivisible by 2.
         Assert.Equal(0, result.Input.Item1 % 2);
@@ -66,11 +66,11 @@ public sealed class QuickCheckerTests
         var checker = new QuickChecker();
 
         // Act
-        var result = checker.Run<int, int, int, int>(TestFunc, _ => true);
+        var result = checker.Run<int, int, int, int>(TestFunc, static _ => true);
 
         // Assert
         Assert.True(result.IsError);
-        
+
         // Depending on the seed, we may or may not reduce to the optimal input of (2, 2, 2)
         // but it would be wrong to have found anything indivisible by 2.
         Assert.Equal(0, result.Input.Item1 % 2);

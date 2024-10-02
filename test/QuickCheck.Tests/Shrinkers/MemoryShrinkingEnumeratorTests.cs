@@ -10,12 +10,12 @@ public sealed class MemoryShrinkingEnumeratorTests
     {
         // Arrange
         int[][] data = [[], [0], [2], [3]];
-        var expected = data.Select(arr => new Memory<int>(arr)).ToList();
+        var expected = data.Select(static arr => new Memory<int>(arr)).ToArray();
 
         var iterator = MemoryShrinkingEnumerator.Create(new Memory<int>([4]), ArbitraryInt32Generator.Default);
 
         // Act
-        var actual = iterator.ToList();
+        var actual = iterator.ToArray();
 
         // Assert
         AssertEqualMemories(expected, actual);
@@ -35,7 +35,7 @@ public sealed class MemoryShrinkingEnumeratorTests
             [1, 1],
         ];
 
-        var expected = data.Select(arr => new Memory<int>(arr)).ToList();
+        var expected = data.Select(static arr => new Memory<int>(arr)).ToArray();
         var iterator = MemoryShrinkingEnumerator.Create(new Memory<int>([1, 2]), ArbitraryInt32Generator.Default);
 
         // Act
@@ -45,19 +45,19 @@ public sealed class MemoryShrinkingEnumeratorTests
         AssertEqualMemories(expected, actual);
     }
 
-    private static void AssertEqualMemories<T>(ICollection<Memory<T>> expected, ICollection<Memory<T>> actual)
+    private static void AssertEqualMemories<T>(Memory<T>[] expected, Memory<T>[] actual)
     {
-        Assert.Equal(expected.Count, actual.Count);
+        Assert.Equal(expected.Length, actual.Length);
 
         foreach (var (e, a) in expected.Zip(actual))
         {
             if (e.Length == 0 && a.Length == 0)
             {
-                // Assert.Equal can return false for empty M<T> equality. Override. 
+                // Assert.Equal can return false for empty M<T> equality. Override.
                 continue;
             }
 
-            Assert.Equal(e, a);
+            Assert.True(a.Span.SequenceEqual(e.Span));
         }
     }
 }
