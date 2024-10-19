@@ -2,14 +2,10 @@
 
     <PropertyGroup>
         <TargetFramework>net9.0</TargetFramework>
-
-        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <WarningsAsErrors>Nullable</WarningsAsErrors>
-
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <IsPackable>true</IsPackable>
-
         <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 

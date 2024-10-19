@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace QuickCheck;
+namespace QuickCheck.Exceptions;
 
 /// <summary>
 /// Thrown when a <see cref="QuickChecker"/> is missing a required <see cref="IArbitraryValueGenerator{T}"/>.
@@ -12,16 +12,16 @@ public sealed class MissingGeneratorException : Exception
     /// </summary>
     public Type Type { get; }
 
-    public MissingGeneratorException(string message, Type type) : base(message)
+    private MissingGeneratorException(string message, Type type) : base(message)
     {
         Type = type;
     }
 
     [DoesNotReturn]
-    public static void Throw(Type type)
+    internal static void Throw(Type type)
     {
         throw new MissingGeneratorException(
-            $"No generator is registered for type '{type}'. Add one to your {nameof(QuickChecker)} before running.",
+            $"No generator is registered for type '{type.Name}'. Add one to your {nameof(QuickChecker)} before running.",
             type);
     }
 }
