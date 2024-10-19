@@ -17,7 +17,7 @@ public class ArbitrarySignedIntegerGenerator<T> : ArbitraryValueGenerator<T>
 
     public override T Generate()
     {
-        // Weight `MinValue`, `Zero`, and `MaxValue` higher because they're likely edge cases. 
+        // Weight `MinValue`, `Zero`, and `MaxValue` higher because they're likely edge cases.
         return Random.Next(0, 10) switch
         {
             0 => Choose([T.MinValue, T.Zero, T.MaxValue]),
@@ -33,7 +33,7 @@ public class ArbitrarySignedIntegerGenerator<T> : ArbitraryValueGenerator<T>
     private sealed class SignedIntegerShrinker : IEnumerator<T>, IEnumerable<T>
     {
         private T _current;
-        private T _from;
+        private readonly T _from;
         private T _diff;
 
         private SignedIntegerShrinker(T from)
@@ -101,17 +101,81 @@ public class ArbitrarySignedIntegerGenerator<T> : ArbitraryValueGenerator<T>
     }
 }
 
+
+/// <summary>
+/// A pseudo-random generator for <see cref="Int16"/> values.
+/// </summary>
 public sealed class ArbitraryInt16Generator : ArbitrarySignedIntegerGenerator<short>
 {
+    /// <summary>
+    /// Gets a read-only singleton instance of <see cref="ArbitraryInt16Generator"/> using the default <see cref="Random.Shared"/> pseudo-random number generator.
+    /// </summary>
     public static readonly ArbitraryInt16Generator Default = new();
+
+    /// <summary>
+    /// Creates a new <see cref="ArbitraryInt16Generator"/> with the default <see cref="Random.Shared"/> pseudo-random number generator.
+    /// </summary>
+    public ArbitraryInt16Generator() : base(Random.Shared)
+    {
+    }
+
+    /// <summary>
+    /// Creates a new <see cref="ArbitraryInt16Generator"/> with the specified <paramref name="random"/> pseudo-random number generator.
+    /// </summary>
+    /// <param name="random">The pseudo-random number generator to use.</param>
+    public ArbitraryInt16Generator(Random random) : base(random)
+    {
+    }
 }
 
+/// <summary>
+/// A pseudo-random generator for <see cref="Int32"/> values.
+/// </summary>
 public sealed class ArbitraryInt32Generator : ArbitrarySignedIntegerGenerator<int>
 {
+    /// <summary>
+    /// Gets a read-only singleton instance of <see cref="ArbitraryInt32Generator"/> using the default <see cref="Random.Shared"/> pseudo-random number generator.
+    /// </summary>
     public static readonly ArbitraryInt32Generator Default = new();
+
+    /// <summary>
+    /// Creates a new <see cref="ArbitraryInt32Generator"/> with the default <see cref="Random.Shared"/> pseudo-random number generator.
+    /// </summary>
+    public ArbitraryInt32Generator() : base(Random.Shared)
+    {
+    }
+
+    /// <summary>
+    /// Creates a new <see cref="ArbitraryInt32Generator"/> with the specified <paramref name="random"/> pseudo-random number generator.
+    /// </summary>
+    /// <param name="random">The pseudo-random number generator to use.</param>
+    public ArbitraryInt32Generator(Random random) : base(random)
+    {
+    }
 }
 
+/// <summary>
+/// A pseudo-random generator for <see cref="Int64"/> values.
+/// </summary>
 public sealed class ArbitraryInt64Generator : ArbitrarySignedIntegerGenerator<long>
 {
+    /// <summary>
+    /// Gets a read-only singleton instance of <see cref="ArbitraryInt64Generator"/> using the default <see cref="Random.Shared"/> pseudo-random number generator.
+    /// </summary>
     public static readonly ArbitraryInt64Generator Default = new();
+
+    /// <summary>
+    /// Creates a new <see cref="ArbitraryInt64Generator"/> with the default <see cref="Random.Shared"/> pseudo-random number generator.
+    /// </summary>
+    public ArbitraryInt64Generator() : base(Random.Shared)
+    {
+    }
+
+    /// <summary>
+    /// Creates a new <see cref="ArbitraryInt64Generator"/> with the specified <paramref name="random"/> pseudo-random number generator.
+    /// </summary>
+    /// <param name="random">The pseudo-random number generator to use.</param>
+    public ArbitraryInt64Generator(Random random) : base(random)
+    {
+    }
 }
