@@ -16,7 +16,9 @@ public static class ListShrinkingEnumerator
     /// <param name="valueGenerator">A value generator for the list's items.</param>
     /// <typeparam name="TList">The type of the list.</typeparam>
     /// <typeparam name="TItem">The type of the list's items.</typeparam>
-    public static IEnumerable<TList> Create<TList, TItem>(TList from, IArbitraryValueGenerator<TItem> valueGenerator)
+    public static IEnumerable<TList> Create<TList, TItem>(
+        TList from,
+        IArbitraryValueGenerator<TItem> valueGenerator)
         where TList : IList<TItem>, new()
     {
         if (from.Count == 0)
@@ -25,7 +27,9 @@ public static class ListShrinkingEnumerator
         }
 
         var size = from.Count;
-        return new ListShrinkingEnumerator<TList, TItem>(from, size: size, offset: size, valueGenerator);
+
+        return new ListShrinkingEnumerator<TList, TItem>(from, size: size,
+            offset: size, valueGenerator);
     }
 }
 
@@ -35,7 +39,8 @@ public static class ListShrinkingEnumerator
 /// </summary>
 /// <typeparam name="TList">The list type, implementing <see cref="IList{T}"/> and providing a default constructor.</typeparam>
 /// <typeparam name="TItem">The type of item that the <typeparamref name="TList"/> contains.</typeparam>
-public sealed class ListShrinkingEnumerator<TList, TItem> : IEnumerable<TList>, IEnumerator<TList>
+public sealed class ListShrinkingEnumerator<TList, TItem> : IEnumerable<TList>,
+    IEnumerator<TList>
     where TList : IList<TItem>, new()
 
 {
@@ -46,7 +51,11 @@ public sealed class ListShrinkingEnumerator<TList, TItem> : IEnumerable<TList>, 
     private readonly IArbitraryValueGenerator<TItem> _valueGenerator;
     private IEnumerator<TItem> _shrinker;
 
-    internal ListShrinkingEnumerator(TList from, int size, int offset, IArbitraryValueGenerator<TItem> valueGenerator)
+    internal ListShrinkingEnumerator(
+        TList from,
+        int size,
+        int offset,
+        IArbitraryValueGenerator<TItem> valueGenerator)
     {
         ArgumentOutOfRangeException.ThrowIfZero(from.Count);
 

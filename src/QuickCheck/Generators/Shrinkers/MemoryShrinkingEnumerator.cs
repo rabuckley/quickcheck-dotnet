@@ -19,11 +19,15 @@ public static class MemoryShrinkingEnumerator
         }
 
         var size = from.Length;
-        return new MemoryShrinkingEnumerator<TItem>(from, size: size, offset: size, valueGenerator);
+
+        return new MemoryShrinkingEnumerator<TItem>(from, size: size,
+            offset: size, valueGenerator);
     }
 }
 
-public sealed class MemoryShrinkingEnumerator<TItem> : IEnumerable<Memory<TItem>>, IEnumerator<Memory<TItem>>
+public sealed class
+    MemoryShrinkingEnumerator<TItem> : IEnumerable<Memory<TItem>>,
+    IEnumerator<Memory<TItem>>
 {
     private Memory<TItem> _current;
     private readonly Memory<TItem> _from;

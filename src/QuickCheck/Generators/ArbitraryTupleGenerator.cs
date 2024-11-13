@@ -1,6 +1,6 @@
 ﻿namespace QuickCheck.Generators;
 
-public sealed class ArbitraryTupleGenerator<T1, T2> : ArbitraryValueGenerator<(T1, T2)>
+public class ArbitraryTupleGenerator<T1, T2> : ArbitraryValueGenerator<(T1, T2)>
 {
     private readonly IArbitraryValueGenerator<T1> _t1ValueGenerator;
     private readonly IArbitraryValueGenerator<T2> _t2ValueGenerator;
@@ -30,7 +30,8 @@ public sealed class ArbitraryTupleGenerator<T1, T2> : ArbitraryValueGenerator<(T
     }
 }
 
-public sealed class ArbitraryTupleGenerator<T1, T2, T3> : ArbitraryValueGenerator<(T1, T2, T3)>
+public class
+    ArbitraryTupleGenerator<T1, T2, T3> : ArbitraryValueGenerator<(T1, T2, T3)>
 {
     private readonly IArbitraryValueGenerator<T1> _t1ValueGenerator;
     private readonly IArbitraryValueGenerator<T2> _t2ValueGenerator;
@@ -49,7 +50,8 @@ public sealed class ArbitraryTupleGenerator<T1, T2, T3> : ArbitraryValueGenerato
 
     public override (T1, T2, T3) Generate()
     {
-        return (_t1ValueGenerator.Generate(), _t2ValueGenerator.Generate(), _t3ValueGenerator.Generate());
+        return (_t1ValueGenerator.Generate(), _t2ValueGenerator.Generate(),
+            _t3ValueGenerator.Generate());
     }
 
     public override IEnumerable<(T1, T2, T3)> Shrink((T1, T2, T3) from)
