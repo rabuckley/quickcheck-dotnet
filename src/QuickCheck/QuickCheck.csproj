@@ -11,7 +11,7 @@
 
     <PropertyGroup>
         <PackageId>QuickCheck</PackageId>
-        <Version>0.0.2</Version>
+        <Version>0.1.0</Version>
         <Authors>Ryan Buckley</Authors>
         <PackageTags>QuickCheck, Fuzz, Fuzzer, Testing</PackageTags>
         <PackageProjectUrl>https://github.com/rabuckley/quickcheck-dotnet</PackageProjectUrl>
