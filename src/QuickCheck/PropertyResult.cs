@@ -9,7 +9,7 @@ namespace QuickCheck;
 /// <typeparam name="T">The type of value the property was checked over.</typeparam>
 public sealed class PropertyResult<T>
 {
-    internal PropertyResult(
+    private PropertyResult(
         PropertyOutcome outcome,
         ulong seed,
         int testsRun,
@@ -30,6 +30,26 @@ public sealed class PropertyResult<T>
         ShrinkAttempts = shrinkAttempts;
         Shrinks = shrinks;
     }
+
+    internal static PropertyResult<T> Passed(ulong seed, int testsRun, int discards) =>
+        new(PropertyOutcome.Passed, seed, testsRun, discards,
+            original: null, minimal: null, replay: null, shrinkAttempts: 0, shrinks: 0);
+
+    internal static PropertyResult<T> Exhausted(ulong seed, int testsRun, int discards) =>
+        new(PropertyOutcome.Exhausted, seed, testsRun, discards,
+            original: null, minimal: null, replay: null, shrinkAttempts: 0, shrinks: 0);
+
+    internal static PropertyResult<T> Falsified(
+        ulong seed,
+        int testsRun,
+        int discards,
+        Counterexample<T> original,
+        Counterexample<T> minimal,
+        Replay replay,
+        int shrinkAttempts,
+        int shrinks) =>
+        new(PropertyOutcome.Falsified, seed, testsRun, discards,
+            original, minimal, replay, shrinkAttempts, shrinks);
 
     /// <summary>Gets the outcome of the check.</summary>
     public PropertyOutcome Outcome { get; }

@@ -75,15 +75,7 @@ public sealed class Property<T>
 
                     if (discards > maxDiscards)
                     {
-                        return new PropertyResult<T>(PropertyOutcome.Exhausted,
-                            seed: seed,
-                            testsRun: passed,
-                            discards: discards,
-                            original: null,
-                            minimal: null,
-                            replay: null,
-                            shrinkAttempts: 0,
-                            shrinks: 0);
+                        return PropertyResult<T>.Exhausted(seed, passed, discards);
                     }
 
                     break;
@@ -93,16 +85,7 @@ public sealed class Property<T>
             }
         }
 
-        return new PropertyResult<T>(
-            PropertyOutcome.Passed,
-            seed,
-            passed,
-            discards,
-            original: null,
-            minimal: null,
-            replay: null,
-            shrinkAttempts: 0,
-            shrinks: 0);
+        return PropertyResult<T>.Passed(seed, passed, discards);
     }
 
     private PropertyResult<T> CheckSingle(Replay replay, CheckOptions options)
@@ -113,26 +96,8 @@ public sealed class Property<T>
         return example.Status switch
         {
             ExampleStatus.Failed => Falsify(example, replay, testsRun: 0, discards: 0, options),
-            ExampleStatus.Passed => new PropertyResult<T>(
-                PropertyOutcome.Passed,
-                replay.Seed,
-                testsRun: 1,
-                discards: 0,
-                original: null,
-                minimal: null,
-                replay: null,
-                shrinkAttempts: 0,
-                shrinks: 0),
-            _ => new PropertyResult<T>(
-                PropertyOutcome.Exhausted,
-                replay.Seed,
-                testsRun: 0,
-                discards: 1,
-                original: null,
-                minimal: null,
-                replay: null,
-                shrinkAttempts: 0,
-                shrinks: 0)
+            ExampleStatus.Passed => PropertyResult<T>.Passed(replay.Seed, testsRun: 1, discards: 0),
+            _ => PropertyResult<T>.Exhausted(replay.Seed, testsRun: 0, discards: 1)
         };
     }
 
@@ -146,8 +111,7 @@ public sealed class Property<T>
         var shrinker = new Shrinker<T>(_generator, _body, failure, options.MaxShrinkAttempts);
         var minimal = shrinker.Run();
 
-        return new PropertyResult<T>(
-            PropertyOutcome.Falsified,
+        return PropertyResult<T>.Falsified(
             replay.Seed,
             testsRun,
             discards,
