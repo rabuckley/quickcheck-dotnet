@@ -7,8 +7,6 @@ charset = utf-8
 indent_style = space
 trim_trailing_whitespace = true
 insert_final_newline = true
-guidelines = 80
-max_line_length = 80
 # (Please don't specify an indent_size here; that has too many unintended consequences.)
 
 # Code files
