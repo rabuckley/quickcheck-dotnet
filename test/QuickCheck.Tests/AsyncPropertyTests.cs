@@ -249,4 +249,17 @@ public sealed class AsyncPropertyTests
         Assert.Throws<OperationCanceledException>(() =>
             property.Check(new CheckOptions { Seed = 1 }, cancellation.Token));
     }
+
+    [Fact]
+    public void Report_can_carry_a_custom_replay_hint()
+    {
+        var result = Property.ForAll(Generate.Integer<int>(), static x => x < 10).Check(new CheckOptions { Seed = 2 });
+
+        Assert.True(result.IsFalsified);
+        Assert.Contains("Replay with: [Property(Replay = \"2:", result.ToString($"[Property(Replay = \"{result.Replay}\")]"));
+        Assert.Contains("Replay with: new CheckOptions", result.ToString());
+
+        var exception = Assert.Throws<PropertyFailedException>(() => result.ThrowIfFailed("custom hint"));
+        Assert.Contains("Replay with: custom hint", exception.Message);
+    }
 }

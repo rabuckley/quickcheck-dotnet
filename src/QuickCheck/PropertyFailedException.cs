@@ -2,7 +2,7 @@ namespace QuickCheck;
 
 /// <summary>
 /// The exception that is thrown by <see cref="Property{T}.Assert"/> and
-/// <see cref="PropertyResult{T}.ThrowIfFailed"/> when a property is falsified or a check is
+/// <see cref="PropertyResult{T}.ThrowIfFailed()"/> when a property is falsified or a check is
 /// exhausted.
 /// </summary>
 /// <remarks>

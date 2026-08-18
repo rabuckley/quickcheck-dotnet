@@ -102,11 +102,24 @@ public sealed class PropertyResult<T>
     /// <exception cref="PropertyFailedException">
     /// <see cref="Outcome"/> is not <see cref="PropertyOutcome.Passed"/>.
     /// </exception>
-    public void ThrowIfFailed()
+    public void ThrowIfFailed() => ThrowIfFailed(replayHint: null);
+
+    /// <summary>
+    /// Throws a <see cref="PropertyFailedException"/> whose report replaces the replay
+    /// instruction, if the property was falsified or the check was exhausted.
+    /// </summary>
+    /// <param name="replayHint">
+    /// The instruction the report gives for reproducing a failure; see
+    /// <see cref="ToString(string?)"/>.
+    /// </param>
+    /// <exception cref="PropertyFailedException">
+    /// <see cref="Outcome"/> is not <see cref="PropertyOutcome.Passed"/>.
+    /// </exception>
+    public void ThrowIfFailed(string? replayHint)
     {
         if (Outcome is not PropertyOutcome.Passed)
         {
-            throw new PropertyFailedException(ToString(), Minimal?.Exception);
+            throw new PropertyFailedException(ToString(replayHint), Minimal?.Exception);
         }
     }
 
@@ -114,7 +127,19 @@ public sealed class PropertyResult<T>
     /// <returns>
     /// A human-readable report of the result, including any falsifying example and how to replay it.
     /// </returns>
-    public override string ToString()
+    public override string ToString() => ToString(replayHint: null);
+
+    /// <summary>Returns a report of the check that replaces the replay instruction.</summary>
+    /// <param name="replayHint">
+    /// The instruction the report gives for reproducing a failure, for a caller that runs
+    /// properties by some means other than <see cref="CheckOptions"/> — a test framework adapter,
+    /// say, where the seed belongs in an attribute on the test method. When <see langword="null"/>,
+    /// the report shows the <see cref="CheckOptions.Replay"/> snippet.
+    /// </param>
+    /// <returns>
+    /// A human-readable report of the result, including any falsifying example and how to replay it.
+    /// </returns>
+    public string ToString(string? replayHint)
     {
         var report = new StringBuilder();
 
@@ -147,7 +172,8 @@ public sealed class PropertyResult<T>
                 }
 
                 report.AppendLine();
-                report.Append($"  Replay with: new CheckOptions {{ Replay = Replay.Parse(\"{Replay}\") }}");
+                report.Append("  Replay with: ")
+                    .Append(replayHint ?? $"new CheckOptions {{ Replay = Replay.Parse(\"{Replay}\") }}");
                 break;
         }
 
