@@ -126,6 +126,14 @@ Property.ForAll(Generate.String(), s =>
 
 `CheckOptions` controls the run: `RunCount` (default 100), `Seed`, `Replay` (re-run one specific failing example), `MaxShrinkAttempts`, and `MaxDiscardRatio`.
 
+Bodies can be asynchronous. `ForAll` with a `Task`-returning body gives an `AsyncProperty<T>` with `CheckAsync` and `AssertAsync`; examples are awaited one at a time so shrinking stays deterministic.
+
+```csharp
+await Property.ForAll(Generate.String(), async s => Assert.Equal(s, await RoundTripAsync(s))).AssertAsync();
+```
+
+Await the result: an `AssertAsync()` left un-awaited in a non-`async` test method compiles without a warning and the test passes whatever the property does.
+
 ### Reproducing failures
 
 Every check is driven by a seed, which is printed in the report. The library owns its random number generator, so the same seed produces the same examples on every machine and runtime. To pin down a failure while you fix it, pass the replay token from the report:

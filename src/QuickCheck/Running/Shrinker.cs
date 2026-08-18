@@ -12,7 +12,7 @@ namespace QuickCheck.Running;
 internal sealed class Shrinker<T>
 {
     private readonly Generator<T> _generator;
-    private readonly Func<T, bool> _body;
+    private readonly Func<T, ValueTask<bool>> _body;
     private readonly FailureKey _key;
     private readonly int _maxAttempts;
 
@@ -20,7 +20,11 @@ internal sealed class Shrinker<T>
     private int _attempts;
     private int _shrinks;
 
-    public Shrinker(Generator<T> generator, Func<T, bool> body, ExampleRun<T> failure, int maxAttempts)
+    public Shrinker(
+        Generator<T> generator,
+        Func<T, ValueTask<bool>> body,
+        ExampleRun<T> failure,
+        int maxAttempts)
     {
         _generator = generator;
         _body = body;
@@ -29,17 +33,17 @@ internal sealed class Shrinker<T>
         _maxAttempts = maxAttempts;
     }
 
-    public ShrinkOutcome<T> Run()
+    public async ValueTask<ShrinkOutcome<T>> RunAsync()
     {
         bool improved;
 
         do
         {
-            improved = DeleteSpans();
-            improved |= ZeroSpans();
-            improved |= MinimiseDuplicates();
-            improved |= MinimiseChoices();
-            improved |= RedistributePairs();
+            improved = await DeleteSpansAsync().ConfigureAwait(false);
+            improved |= await ZeroSpansAsync().ConfigureAwait(false);
+            improved |= await MinimiseDuplicatesAsync().ConfigureAwait(false);
+            improved |= await MinimiseChoicesAsync().ConfigureAwait(false);
+            improved |= await RedistributePairsAsync().ConfigureAwait(false);
         } while (improved && _attempts < _maxAttempts);
 
         return new ShrinkOutcome<T>(_best, _attempts, _shrinks);
@@ -49,7 +53,7 @@ internal sealed class Shrinker<T>
     /// Tries removing each structural span outright — a list element, a
     /// rejected filter attempt, a whole subtree.
     /// </summary>
-    private bool DeleteSpans()
+    private async ValueTask<bool> DeleteSpansAsync()
     {
         var improved = false;
 
@@ -71,7 +75,7 @@ internal sealed class Shrinker<T>
                 }
             }
 
-            if (TryAccept(candidate))
+            if (await TryAcceptAsync(candidate).ConfigureAwait(false))
             {
                 improved = true;
                 // The span list was rebuilt from the accepted replay; carry on
@@ -87,7 +91,7 @@ internal sealed class Shrinker<T>
     /// Tries setting every choice within a span to its minimum at once, for
     /// values whose choices only shrink together.
     /// </summary>
-    private bool ZeroSpans()
+    private async ValueTask<bool> ZeroSpansAsync()
     {
         var improved = false;
 
@@ -118,7 +122,7 @@ internal sealed class Shrinker<T>
                 candidate[j] = candidate[j] with { Value = 0 };
             }
 
-            if (TryAccept(candidate))
+            if (await TryAcceptAsync(candidate).ConfigureAwait(false))
             {
                 improved = true;
                 i = Math.Min(i, _best.Spans.Count);
@@ -132,7 +136,7 @@ internal sealed class Shrinker<T>
     /// Shrinks every group of choices sharing the same value in lockstep, for
     /// failures that depend on values being equal (a duplicate in a list).
     /// </summary>
-    private bool MinimiseDuplicates()
+    private async ValueTask<bool> MinimiseDuplicatesAsync()
     {
         var improved = false;
 
@@ -161,7 +165,7 @@ internal sealed class Shrinker<T>
             var low = 0UL;
             var high = _best.Choices[indices[0]].Value;
 
-            if (TryReplaceAll(indices, 0))
+            if (await TryReplaceAllAsync(indices, 0).ConfigureAwait(false))
             {
                 improved = true;
                 continue;
@@ -171,7 +175,7 @@ internal sealed class Shrinker<T>
             {
                 var mid = low + (high - low) / 2;
 
-                if (TryReplaceAll(indices, mid))
+                if (await TryReplaceAllAsync(indices, mid).ConfigureAwait(false))
                 {
                     improved = true;
                     high = mid;
@@ -186,7 +190,7 @@ internal sealed class Shrinker<T>
         return improved;
     }
 
-    private bool TryReplaceAll(int[] indices, ulong value)
+    private async ValueTask<bool> TryReplaceAllAsync(int[] indices, ulong value)
     {
         var candidate = new List<Choice>(_best.Choices);
 
@@ -200,7 +204,7 @@ internal sealed class Shrinker<T>
             candidate[index] = candidate[index] with { Value = value };
         }
 
-        return TryAccept(candidate);
+        return await TryAcceptAsync(candidate).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -208,7 +212,7 @@ internal sealed class Shrinker<T>
     /// one, for failures that depend on a sum or difference (so that
     /// <c>a + b >= 100</c> ends at <c>(0, 100)</c> rather than <c>(100, 0)</c>).
     /// </summary>
-    private bool RedistributePairs()
+    private async ValueTask<bool> RedistributePairsAsync()
     {
         const int window = 4;
         var improved = false;
@@ -230,7 +234,7 @@ internal sealed class Shrinker<T>
                 // next pass, which moves more of what is left.
                 var maxTransfer = Math.Min(first.Value, second.Max - second.Value);
 
-                if (TryTransfer(i, j, maxTransfer))
+                if (await TryTransferAsync(i, j, maxTransfer).ConfigureAwait(false))
                 {
                     improved = true;
                     continue;
@@ -243,7 +247,7 @@ internal sealed class Shrinker<T>
                 {
                     var mid = low + (high - low) / 2;
 
-                    if (TryTransfer(i, j, mid))
+                    if (await TryTransferAsync(i, j, mid).ConfigureAwait(false))
                     {
                         improved = true;
                         break;
@@ -257,7 +261,7 @@ internal sealed class Shrinker<T>
         return improved;
     }
 
-    private bool TryTransfer(int from, int to, ulong amount)
+    private async ValueTask<bool> TryTransferAsync(int from, int to, ulong amount)
     {
         if (amount == 0 || from >= _best.Choices.Count || to >= _best.Choices.Count)
         {
@@ -267,7 +271,7 @@ internal sealed class Shrinker<T>
         var candidate = new List<Choice>(_best.Choices);
         candidate[from] = candidate[from] with { Value = candidate[from].Value - amount };
         candidate[to] = candidate[to] with { Value = candidate[to].Value + amount };
-        return TryAccept(candidate);
+        return await TryAcceptAsync(candidate).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -275,7 +279,7 @@ internal sealed class Shrinker<T>
     /// short linear scan for predicates the binary search cannot see through
     /// (such as a filter that only accepts every third value).
     /// </summary>
-    private bool MinimiseChoices()
+    private async ValueTask<bool> MinimiseChoicesAsync()
     {
         var improved = false;
 
@@ -286,7 +290,7 @@ internal sealed class Shrinker<T>
                 continue;
             }
 
-            if (TryReplace(i, 0))
+            if (await TryReplaceAsync(i, 0).ConfigureAwait(false))
             {
                 improved = true;
                 continue;
@@ -294,9 +298,9 @@ internal sealed class Shrinker<T>
 
             while (_attempts < _maxAttempts && i < _best.Choices.Count && !_best.Choices[i].IsMinimal)
             {
-                improved |= BinarySearchChoice(i);
+                improved |= await BinarySearchChoiceAsync(i).ConfigureAwait(false);
 
-                if (!StepChoiceDown(i))
+                if (!await StepChoiceDownAsync(i).ConfigureAwait(false))
                 {
                     break;
                 }
@@ -313,7 +317,7 @@ internal sealed class Shrinker<T>
     /// <paramref name="index"/> assuming failure is monotone in the choice:
     /// <c>low</c> does not reproduce, <c>high</c> does.
     /// </summary>
-    private bool BinarySearchChoice(int index)
+    private async ValueTask<bool> BinarySearchChoiceAsync(int index)
     {
         var improved = false;
         var low = 0UL;
@@ -323,7 +327,7 @@ internal sealed class Shrinker<T>
         {
             var mid = low + (high - low) / 2;
 
-            if (TryReplace(index, mid))
+            if (await TryReplaceAsync(index, mid).ConfigureAwait(false))
             {
                 improved = true;
                 // The accepted replay may have restructured the sequence;
@@ -346,7 +350,7 @@ internal sealed class Shrinker<T>
 
     private const int MaxLinearSteps = 8;
 
-    private bool StepChoiceDown(int index)
+    private async ValueTask<bool> StepChoiceDownAsync(int index)
     {
         for (var step = 1UL; step <= MaxLinearSteps && _attempts < _maxAttempts; step++)
         {
@@ -355,7 +359,7 @@ internal sealed class Shrinker<T>
                 return false;
             }
 
-            if (TryReplace(index, _best.Choices[index].Value - step))
+            if (await TryReplaceAsync(index, _best.Choices[index].Value - step).ConfigureAwait(false))
             {
                 return true;
             }
@@ -364,7 +368,7 @@ internal sealed class Shrinker<T>
         return false;
     }
 
-    private bool TryReplace(int index, ulong value)
+    private async ValueTask<bool> TryReplaceAsync(int index, ulong value)
     {
         if (index >= _best.Choices.Count || _best.Choices[index].Value == value)
         {
@@ -374,14 +378,14 @@ internal sealed class Shrinker<T>
         var replaced = new List<Choice>(_best.Choices);
         replaced[index] = replaced[index] with { Value = value };
 
-        if (TryAccept(replaced))
+        if (await TryAcceptAsync(replaced).ConfigureAwait(false))
         {
             return true;
         }
 
         var current = _best.Choices[index].Value;
 
-        return value < current && TryReplaceAsLength(index, replaced, current - value);
+        return value < current && await TryReplaceAsLengthAsync(index, replaced, current - value).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -390,7 +394,7 @@ internal sealed class Shrinker<T>
     /// right ones are removed. Tries dropping the first <paramref name="delta"/>
     /// spans of each such chain.
     /// </summary>
-    private bool TryReplaceAsLength(int index, List<Choice> replaced, ulong delta)
+    private async ValueTask<bool> TryReplaceAsLengthAsync(int index, List<Choice> replaced, ulong delta)
     {
         const int maxChainsToTry = 3;
         var chainsTried = 0;
@@ -420,7 +424,7 @@ internal sealed class Shrinker<T>
                 }
             }
 
-            if (TryAccept(candidate))
+            if (await TryAcceptAsync(candidate).ConfigureAwait(false))
             {
                 return true;
             }
@@ -470,7 +474,7 @@ internal sealed class Shrinker<T>
         }
     }
 
-    private bool TryAccept(IReadOnlyList<Choice> candidate)
+    private async ValueTask<bool> TryAcceptAsync(IReadOnlyList<Choice> candidate)
     {
         if (_attempts >= _maxAttempts)
         {
@@ -479,7 +483,8 @@ internal sealed class Shrinker<T>
 
         _attempts++;
 
-        var run = ExampleRun<T>.Execute(ChoiceSource.FromPrefix(candidate), _generator, _body);
+        var run = await ExampleRun<T>.ExecuteAsync(ChoiceSource.FromPrefix(candidate), _generator, _body)
+            .ConfigureAwait(false);
 
         if (!run.IsFailure || run.Key != _key || !IsSimpler(run.Choices, _best.Choices))
         {

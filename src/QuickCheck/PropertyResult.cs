@@ -4,7 +4,8 @@ using System.Text;
 namespace QuickCheck;
 
 /// <summary>
-/// Represents the result of checking a <see cref="Property{T}"/>.
+/// Represents the result of checking a <see cref="Property{T}"/> or an
+/// <see cref="AsyncProperty{T}"/>.
 /// </summary>
 /// <typeparam name="T">The type of value the property was checked over.</typeparam>
 public sealed class PropertyResult<T>

@@ -1,7 +1,8 @@
 namespace QuickCheck;
 
 /// <summary>
-/// Represents the options that control how a <see cref="Property{T}"/> is checked.
+/// Represents the options that control how a <see cref="Property{T}"/> or an
+/// <see cref="AsyncProperty{T}"/> is checked.
 /// </summary>
 public sealed record CheckOptions
 {

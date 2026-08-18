@@ -52,4 +52,16 @@ public sealed class ReadmeTests
         Property.ForAll(evens, maybe, maybeInt, (e, s, i) => e % 2 == 0).Assert();
         Assert.All(either.Sample(20), x => Assert.InRange(x, 1, 2));
     }
+
+    [Fact]
+    public async Task Asynchronous_bodies()
+    {
+        await Property.ForAll(Generate.String(), async s => Assert.Equal(s, await RoundTripAsync(s))).AssertAsync();
+    }
+
+    private static async Task<string> RoundTripAsync(string value)
+    {
+        await Task.Yield();
+        return value;
+    }
 }

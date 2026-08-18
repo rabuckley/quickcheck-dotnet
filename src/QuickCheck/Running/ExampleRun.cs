@@ -32,10 +32,10 @@ internal sealed class ExampleRun<T>
 
     public bool IsFailure => Status is ExampleStatus.Failed;
 
-    public static ExampleRun<T> Execute(
+    public static async ValueTask<ExampleRun<T>> ExecuteAsync(
         ChoiceSource source,
         Generator<T> generator,
-        Func<T, bool> body)
+        Func<T, ValueTask<bool>> body)
     {
         T value;
 
@@ -50,7 +50,7 @@ internal sealed class ExampleRun<T>
 
         try
         {
-            var holds = body(value);
+            var holds = await body(value).ConfigureAwait(false);
 
             return holds
                 ? new ExampleRun<T>(ExampleStatus.Passed, source.Recorded, source.Spans, value, null)

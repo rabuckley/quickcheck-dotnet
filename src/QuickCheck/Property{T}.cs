@@ -17,7 +17,7 @@ public sealed class Property<T>
 
     internal Property(Generator<T> generator, Func<T, bool> body)
     {
-        _runner = new PropertyRunner<T>(generator, body);
+        _runner = new PropertyRunner<T>(generator, value => new ValueTask<bool>(body(value)));
     }
 
     /// <summary>
