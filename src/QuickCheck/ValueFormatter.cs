@@ -1,13 +1,16 @@
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace QuickCheck;
 
 /// <summary>
-/// Renders example values for failure reports.
+/// Renders example values for failure reports: quotes strings and chars, expands tuples,
+/// collections and records, and prints <see langword="null"/> explicitly, because the default
+/// <c>ToString</c> of such a value is either uninformative or does not format what it contains.
 /// </summary>
 internal static class ValueFormatter
 {
@@ -68,6 +71,10 @@ internal static class ValueFormatter
                 AppendCollection(builder, array);
                 break;
 
+            case not null when HasSynthesizedToString(value.GetType()):
+                AppendRecord(builder, value);
+                break;
+
             default:
                 builder.Append(value);
                 break;
@@ -101,6 +108,79 @@ internal static class ValueFormatter
         }
 
         return (Array?)type.GetMethod(nameof(Memory<byte>.ToArray), Type.EmptyTypes)?.Invoke(value, null);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="type"/> is a record, class or struct, whose <c>ToString</c> the
+    /// compiler generated; a hand-written override is honoured instead, because a type that has
+    /// defined how it prints means it.
+    /// </summary>
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2070:UnrecognizedReflectionPattern",
+        Justification = "A ToString override is not trimmed while its type is reachable, and a "
+            + "missing member only disables record expansion.")]
+    private static bool HasSynthesizedToString(Type type)
+    {
+        var toString = type.GetMethod(nameof(ToString), BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes);
+        return toString?.DeclaringType == type
+            && toString.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false);
+    }
+
+    /// <summary>
+    /// Mirrors the record's own <c>Name { Member = value, … }</c> layout, base members first, but
+    /// formats each member with this formatter.
+    /// </summary>
+    private static void AppendRecord(StringBuilder builder, object record)
+    {
+        builder.Append(record.GetType().Name).Append(" {");
+        var index = 0;
+
+        foreach (var (name, value) in PrintedMembers(record))
+        {
+            builder.Append(index++ == 0 ? " " : ", ").Append(name).Append(" = ");
+            Append(builder, value);
+        }
+
+        builder.Append(" }");
+    }
+
+    /// <summary>
+    /// The members a synthesized <c>ToString</c> prints: every public instance property and
+    /// field, base members before derived ones.
+    /// </summary>
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2075:MembersOnUnannotatedType",
+        Justification = "Best-effort report formatting: a member removed by trimming is merely "
+            + "omitted from the report.")]
+    private static IEnumerable<(string Name, object? Value)> PrintedMembers(object record)
+    {
+        const BindingFlags PublicInstance = BindingFlags.Public | BindingFlags.Instance;
+        var type = record.GetType();
+
+        var properties = type.GetProperties(PublicInstance)
+            .Where(static property => property.CanRead && property.GetIndexParameters().Length == 0)
+            .Select(property => (Depth: InheritanceDepth(property.DeclaringType), property.Name, Value: property.GetValue(record)));
+
+        var fields = type.GetFields(PublicInstance)
+            .Select(field => (Depth: InheritanceDepth(field.DeclaringType), field.Name, Value: field.GetValue(record)));
+
+        return properties.Concat(fields)
+            .OrderBy(static member => member.Depth)
+            .Select(static member => (member.Name, member.Value));
+    }
+
+    private static int InheritanceDepth(Type? type)
+    {
+        var depth = 0;
+
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            depth++;
+        }
+
+        return depth;
     }
 
     private static void AppendCollection(StringBuilder builder, IEnumerable items)
