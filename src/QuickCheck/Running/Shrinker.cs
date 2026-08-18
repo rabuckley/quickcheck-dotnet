@@ -15,6 +15,7 @@ internal sealed class Shrinker<T>
     private readonly Func<T, ValueTask<bool>> _body;
     private readonly FailureKey _key;
     private readonly int _maxAttempts;
+    private readonly CancellationToken _cancellationToken;
 
     private ExampleRun<T> _best;
     private int _attempts;
@@ -24,17 +25,21 @@ internal sealed class Shrinker<T>
         Generator<T> generator,
         Func<T, ValueTask<bool>> body,
         ExampleRun<T> failure,
-        int maxAttempts)
+        int maxAttempts,
+        CancellationToken cancellationToken)
     {
         _generator = generator;
         _body = body;
         _best = failure;
         _key = failure.Key;
         _maxAttempts = maxAttempts;
+        _cancellationToken = cancellationToken;
     }
 
     public async ValueTask<ShrinkOutcome<T>> RunAsync()
     {
+        _cancellationToken.ThrowIfCancellationRequested();
+
         bool improved;
 
         do
@@ -481,9 +486,11 @@ internal sealed class Shrinker<T>
             return false;
         }
 
+        _cancellationToken.ThrowIfCancellationRequested();
         _attempts++;
 
-        var run = await ExampleRun<T>.ExecuteAsync(ChoiceSource.FromPrefix(candidate), _generator, _body)
+        var run = await ExampleRun<T>
+            .ExecuteAsync(ChoiceSource.FromPrefix(candidate), _generator, _body, _cancellationToken)
             .ConfigureAwait(false);
 
         if (!run.IsFailure || run.Key != _key || !IsSimpler(run.Choices, _best.Choices))

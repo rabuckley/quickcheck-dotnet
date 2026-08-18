@@ -29,14 +29,24 @@ public sealed class AsyncProperty<T>
     /// The options that control the check, or <see langword="null"/> to use
     /// <see cref="CheckOptions.Default"/>.
     /// </param>
+    /// <param name="cancellationToken">
+    /// The token that aborts the check between examples and between shrink attempts. The body does
+    /// not receive it, so a long-running body runs to completion; a body that throws
+    /// <see cref="OperationCanceledException"/> while this token is cancelled aborts the check
+    /// rather than being recorded as a counterexample.
+    /// </param>
     /// <returns>A task that completes when the check has finished.</returns>
     /// <exception cref="PropertyFailedException">
     /// The property was falsified, or too many examples were discarded. The message reports the
     /// minimal counterexample and how to replay it.
     /// </exception>
+    /// <exception cref="OperationCanceledException">
+    /// <paramref name="cancellationToken"/> was cancelled.
+    /// </exception>
     /// <remarks>This method is intended to be awaited directly from a test method.</remarks>
-    public async Task AssertAsync(CheckOptions? options = null) =>
-        (await CheckAsync(options).ConfigureAwait(false)).ThrowIfFailed();
+    public async Task AssertAsync(
+        CheckOptions? options = null, CancellationToken cancellationToken = default) =>
+        (await CheckAsync(options, cancellationToken).ConfigureAwait(false)).ThrowIfFailed();
 
     /// <summary>
     /// Checks the property and returns its outcome instead of throwing.
@@ -45,7 +55,17 @@ public sealed class AsyncProperty<T>
     /// The options that control the check, or <see langword="null"/> to use
     /// <see cref="CheckOptions.Default"/>.
     /// </param>
+    /// <param name="cancellationToken">
+    /// The token that aborts the check between examples and between shrink attempts. The body does
+    /// not receive it, so a long-running body runs to completion; a body that throws
+    /// <see cref="OperationCanceledException"/> while this token is cancelled aborts the check
+    /// rather than being recorded as a counterexample.
+    /// </param>
     /// <returns>The result of the check, including any counterexample found.</returns>
-    public Task<PropertyResult<T>> CheckAsync(CheckOptions? options = null) =>
-        _runner.CheckAsync(options ?? CheckOptions.Default).AsTask();
+    /// <exception cref="OperationCanceledException">
+    /// <paramref name="cancellationToken"/> was cancelled.
+    /// </exception>
+    public Task<PropertyResult<T>> CheckAsync(
+        CheckOptions? options = null, CancellationToken cancellationToken = default) =>
+        _runner.CheckAsync(options ?? CheckOptions.Default, cancellationToken).AsTask();
 }

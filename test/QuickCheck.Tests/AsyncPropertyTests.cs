@@ -129,4 +129,124 @@ public sealed class AsyncPropertyTests
 
         Assert.All(outcomes, static outcome => Assert.Equal(PropertyOutcome.Passed, outcome));
     }
+
+    [Fact]
+    public void Cancellation_aborts_the_check_between_examples()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var runs = 0;
+
+        var property = Property.ForAll(Generate.Integer<int>(), _ =>
+        {
+            if (++runs == 5)
+            {
+                cancellation.Cancel();
+            }
+        });
+
+        Assert.Throws<OperationCanceledException>(() =>
+            property.Check(new CheckOptions { RunCount = 1000 }, cancellation.Token));
+        Assert.Equal(5, runs);
+    }
+
+    [Fact]
+    public async Task Cancellation_aborts_an_async_check_between_examples()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var runs = 0;
+
+        var property = Property.ForAll(Generate.Integer<int>(), async _ =>
+        {
+            await Task.Yield();
+
+            if (++runs == 5)
+            {
+                await cancellation.CancelAsync();
+            }
+        });
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => property.CheckAsync(new CheckOptions { RunCount = 1000 }, cancellation.Token));
+        Assert.Equal(5, runs);
+    }
+
+    /// <summary>
+    /// A body that abandons the check because the check's own token was cancelled aborts it, rather
+    /// than having its <see cref="OperationCanceledException"/> recorded as a counterexample — with
+    /// no shrink attempts, which are the other place the token is observed.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10_000)]
+    public void Cancelling_from_the_body_aborts_the_check(int maxShrinkAttempts)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var abandoned = new OperationCanceledException("abandoned", cancellation.Token);
+
+        var property = Property.ForAll(Generate.Integer<int>(), void (_) =>
+        {
+            cancellation.Cancel();
+            throw abandoned;
+        });
+
+        var thrown = Assert.ThrowsAny<OperationCanceledException>(() =>
+            property.Check(new CheckOptions { MaxShrinkAttempts = maxShrinkAttempts }, cancellation.Token));
+
+        Assert.Same(abandoned, thrown);
+    }
+
+    [Fact]
+    public async Task Cancelling_from_an_async_body_aborts_the_check()
+    {
+        using var cancellation = new CancellationTokenSource();
+
+        var property = Property.ForAll(Generate.Integer<int>(), async _ =>
+        {
+            await Task.Yield();
+            await cancellation.CancelAsync();
+            cancellation.Token.ThrowIfCancellationRequested();
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => property.CheckAsync(new CheckOptions { MaxShrinkAttempts = 0 }, cancellation.Token));
+    }
+
+    /// <summary>
+    /// Cancellation requested by the failing example itself is observed on the way into shrinking,
+    /// where there may be no attempt left to observe it.
+    /// </summary>
+    [Fact]
+    public void Cancellation_requested_by_the_failing_example_aborts_rather_than_reporting()
+    {
+        using var cancellation = new CancellationTokenSource();
+
+        var property = Property.ForAll(Generate.Integer<int>(), _ =>
+        {
+            cancellation.Cancel();
+            return false;
+        });
+
+        Assert.Throws<OperationCanceledException>(() =>
+            property.Check(new CheckOptions { MaxShrinkAttempts = 0 }, cancellation.Token));
+    }
+
+    [Fact]
+    public void Cancellation_during_shrinking_propagates()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var failures = 0;
+
+        var property = Property.ForAll(Generate.Integer<int>(), x =>
+        {
+            if (x > 10 && ++failures == 3)
+            {
+                cancellation.Cancel();
+            }
+
+            return x <= 10;
+        });
+
+        Assert.Throws<OperationCanceledException>(() =>
+            property.Check(new CheckOptions { Seed = 1 }, cancellation.Token));
+    }
 }

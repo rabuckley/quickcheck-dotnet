@@ -27,12 +27,22 @@ public sealed class Property<T>
     /// The options that control the check, or <see langword="null"/> to use
     /// <see cref="CheckOptions.Default"/>.
     /// </param>
+    /// <param name="cancellationToken">
+    /// The token that aborts the check between examples and between shrink attempts. The body does
+    /// not receive it, so a long-running body runs to completion; a body that throws
+    /// <see cref="OperationCanceledException"/> while this token is cancelled aborts the check
+    /// rather than being recorded as a counterexample.
+    /// </param>
     /// <exception cref="PropertyFailedException">
     /// The property was falsified, or too many examples were discarded. The message reports the
     /// minimal counterexample and how to replay it.
     /// </exception>
+    /// <exception cref="OperationCanceledException">
+    /// <paramref name="cancellationToken"/> was cancelled.
+    /// </exception>
     /// <remarks>This method is intended to be called directly from a test method.</remarks>
-    public void Assert(CheckOptions? options = null) => Check(options).ThrowIfFailed();
+    public void Assert(CheckOptions? options = null, CancellationToken cancellationToken = default) =>
+        Check(options, cancellationToken).ThrowIfFailed();
 
     /// <summary>
     /// Checks the property and returns its outcome instead of throwing.
@@ -41,7 +51,17 @@ public sealed class Property<T>
     /// The options that control the check, or <see langword="null"/> to use
     /// <see cref="CheckOptions.Default"/>.
     /// </param>
+    /// <param name="cancellationToken">
+    /// The token that aborts the check between examples and between shrink attempts. The body does
+    /// not receive it, so a long-running body runs to completion; a body that throws
+    /// <see cref="OperationCanceledException"/> while this token is cancelled aborts the check
+    /// rather than being recorded as a counterexample.
+    /// </param>
     /// <returns>The result of the check, including any counterexample found.</returns>
-    public PropertyResult<T> Check(CheckOptions? options = null) =>
-        _runner.Check(options ?? CheckOptions.Default);
+    /// <exception cref="OperationCanceledException">
+    /// <paramref name="cancellationToken"/> was cancelled.
+    /// </exception>
+    public PropertyResult<T> Check(
+        CheckOptions? options = null, CancellationToken cancellationToken = default) =>
+        _runner.Check(options ?? CheckOptions.Default, cancellationToken);
 }

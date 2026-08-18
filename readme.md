@@ -124,7 +124,7 @@ Property.ForAll(Generate.String(), s =>
 - `Check(options)` returns a `PropertyResult<T>` with the outcome, seed, counterexamples, and shrink statistics, without throwing.
 - `Property.Assume(condition)` discards the current example when a precondition doesn't hold. Prefer a generator that only produces valid inputs; a property that discards too much is reported as `Exhausted` rather than silently passing on a handful of examples.
 
-`CheckOptions` controls the run: `RunCount` (default 100), `Seed`, `Replay` (re-run one specific failing example), `MaxShrinkAttempts`, and `MaxDiscardRatio`.
+`CheckOptions` controls the run: `RunCount` (default 100), `Seed`, `Replay` (re-run one specific failing example), `MaxShrinkAttempts`, and `MaxDiscardRatio`. Both `Assert` and `Check` also take a `CancellationToken` after the options; it aborts the check between examples and between shrink attempts, throwing rather than reporting a result. The body is not given the token, so a long-running body runs to completion — but a body that throws `OperationCanceledException` while that token is cancelled aborts the check rather than being recorded as a counterexample.
 
 Bodies can be asynchronous. `ForAll` with a `Task`-returning body gives an `AsyncProperty<T>` with `CheckAsync` and `AssertAsync`; examples are awaited one at a time so shrinking stays deterministic.
 

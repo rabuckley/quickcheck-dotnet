@@ -26,9 +26,9 @@ internal sealed class PropertyRunner<T>
     /// The loop awaits nothing but the body, so a body that completes synchronously leaves the whole
     /// check complete by the time <see cref="CheckAsync"/> returns.
     /// </remarks>
-    public PropertyResult<T> Check(CheckOptions options)
+    public PropertyResult<T> Check(CheckOptions options, CancellationToken cancellationToken)
     {
-        var check = CheckAsync(options);
+        var check = CheckAsync(options, cancellationToken);
 
         if (!check.IsCompleted)
         {
@@ -38,11 +38,12 @@ internal sealed class PropertyRunner<T>
         return check.GetAwaiter().GetResult();
     }
 
-    public async ValueTask<PropertyResult<T>> CheckAsync(CheckOptions options)
+    public async ValueTask<PropertyResult<T>> CheckAsync(
+        CheckOptions options, CancellationToken cancellationToken)
     {
         if (options.Replay is { } replay)
         {
-            return await CheckSingleAsync(replay, options).ConfigureAwait(false);
+            return await CheckSingleAsync(replay, options, cancellationToken).ConfigureAwait(false);
         }
 
         var seed = options.Seed ?? (ulong)Random.Shared.NextInt64();
@@ -52,8 +53,11 @@ internal sealed class PropertyRunner<T>
 
         for (var run = 0; passed < options.RunCount; run++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var source = ChoiceSource.FromRandom(Xoshiro256StarStar.ForRun(seed, run));
-            var example = await ExampleRun<T>.ExecuteAsync(source, _generator, _body).ConfigureAwait(false);
+            var example = await ExampleRun<T>.ExecuteAsync(source, _generator, _body, cancellationToken)
+                .ConfigureAwait(false);
 
             switch (example.Status)
             {
@@ -72,7 +76,8 @@ internal sealed class PropertyRunner<T>
                     break;
 
                 case ExampleStatus.Failed:
-                    return await FalsifyAsync(example, new Replay(seed, run), passed, discards, options)
+                    return await FalsifyAsync(
+                            example, new Replay(seed, run), passed, discards, options, cancellationToken)
                         .ConfigureAwait(false);
             }
         }
@@ -80,14 +85,19 @@ internal sealed class PropertyRunner<T>
         return PropertyResult<T>.Passed(seed, passed, discards);
     }
 
-    private async ValueTask<PropertyResult<T>> CheckSingleAsync(Replay replay, CheckOptions options)
+    private async ValueTask<PropertyResult<T>> CheckSingleAsync(
+        Replay replay, CheckOptions options, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         var source = ChoiceSource.FromRandom(Xoshiro256StarStar.ForRun(replay.Seed, replay.Run));
-        var example = await ExampleRun<T>.ExecuteAsync(source, _generator, _body).ConfigureAwait(false);
+        var example = await ExampleRun<T>.ExecuteAsync(source, _generator, _body, cancellationToken)
+            .ConfigureAwait(false);
 
         return example.Status switch
         {
-            ExampleStatus.Failed => await FalsifyAsync(example, replay, testsRun: 0, discards: 0, options)
+            ExampleStatus.Failed => await FalsifyAsync(
+                    example, replay, testsRun: 0, discards: 0, options, cancellationToken)
                 .ConfigureAwait(false),
             ExampleStatus.Passed => PropertyResult<T>.Passed(replay.Seed, testsRun: 1, discards: 0),
             _ => PropertyResult<T>.Exhausted(replay.Seed, testsRun: 0, discards: 1)
@@ -95,9 +105,15 @@ internal sealed class PropertyRunner<T>
     }
 
     private async ValueTask<PropertyResult<T>> FalsifyAsync(
-        ExampleRun<T> failure, Replay replay, int testsRun, int discards, CheckOptions options)
+        ExampleRun<T> failure,
+        Replay replay,
+        int testsRun,
+        int discards,
+        CheckOptions options,
+        CancellationToken cancellationToken)
     {
-        var shrinker = new Shrinker<T>(_generator, _body, failure, options.MaxShrinkAttempts);
+        var shrinker = new Shrinker<T>(
+            _generator, _body, failure, options.MaxShrinkAttempts, cancellationToken);
         var outcome = await shrinker.RunAsync().ConfigureAwait(false);
 
         return PropertyResult<T>.Falsified(

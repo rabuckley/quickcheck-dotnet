@@ -32,10 +32,19 @@ internal sealed class ExampleRun<T>
 
     public bool IsFailure => Status is ExampleStatus.Failed;
 
+    /// <summary>
+    /// Generates one example and runs <paramref name="body"/> on it.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="cancellationToken"/> is not passed to the body; it only distinguishes a body
+    /// that abandoned the check because that token was cancelled — which propagates — from one that
+    /// threw, which becomes a counterexample.
+    /// </remarks>
     public static async ValueTask<ExampleRun<T>> ExecuteAsync(
         ChoiceSource source,
         Generator<T> generator,
-        Func<T, ValueTask<bool>> body)
+        Func<T, ValueTask<bool>> body,
+        CancellationToken cancellationToken)
     {
         T value;
 
@@ -59,6 +68,10 @@ internal sealed class ExampleRun<T>
         catch (DiscardException)
         {
             return new ExampleRun<T>(ExampleStatus.Discarded, source.Recorded, source.Spans, value, null);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {
