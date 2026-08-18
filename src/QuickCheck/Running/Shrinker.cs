@@ -17,6 +17,8 @@ internal sealed class Shrinker<T>
     private readonly int _maxAttempts;
 
     private ExampleRun<T> _best;
+    private int _attempts;
+    private int _shrinks;
 
     public Shrinker(Generator<T> generator, Func<T, bool> body, ExampleRun<T> failure, int maxAttempts)
     {
@@ -27,11 +29,7 @@ internal sealed class Shrinker<T>
         _maxAttempts = maxAttempts;
     }
 
-    public ExampleRun<T> Best => _best;
-    public int Attempts { get; private set; }
-    public int Shrinks { get; private set; }
-
-    public ExampleRun<T> Run()
+    public ShrinkOutcome<T> Run()
     {
         bool improved;
 
@@ -42,9 +40,9 @@ internal sealed class Shrinker<T>
             improved |= MinimiseDuplicates();
             improved |= MinimiseChoices();
             improved |= RedistributePairs();
-        } while (improved && Attempts < _maxAttempts);
+        } while (improved && _attempts < _maxAttempts);
 
-        return _best;
+        return new ShrinkOutcome<T>(_best, _attempts, _shrinks);
     }
 
     /// <summary>
@@ -57,7 +55,7 @@ internal sealed class Shrinker<T>
 
         for (var i = _best.Spans.Count - 1; i >= 0; i--)
         {
-            if (Attempts >= _maxAttempts)
+            if (_attempts >= _maxAttempts)
             {
                 break;
             }
@@ -95,7 +93,7 @@ internal sealed class Shrinker<T>
 
         for (var i = _best.Spans.Count - 1; i >= 0; i--)
         {
-            if (Attempts >= _maxAttempts)
+            if (_attempts >= _maxAttempts)
             {
                 break;
             }
@@ -148,7 +146,7 @@ internal sealed class Shrinker<T>
 
         foreach (var indices in groups)
         {
-            if (Attempts >= _maxAttempts)
+            if (_attempts >= _maxAttempts)
             {
                 break;
             }
@@ -169,7 +167,7 @@ internal sealed class Shrinker<T>
                 continue;
             }
 
-            while (high - low > 1 && Attempts < _maxAttempts)
+            while (high - low > 1 && _attempts < _maxAttempts)
             {
                 var mid = low + (high - low) / 2;
 
@@ -215,7 +213,7 @@ internal sealed class Shrinker<T>
         const int window = 4;
         var improved = false;
 
-        for (var i = 0; i < _best.Choices.Count && Attempts < _maxAttempts; i++)
+        for (var i = 0; i < _best.Choices.Count && _attempts < _maxAttempts; i++)
         {
             for (var j = i + 1; j <= i + window && j < _best.Choices.Count; j++)
             {
@@ -241,7 +239,7 @@ internal sealed class Shrinker<T>
                 var low = 0UL;
                 var high = maxTransfer;
 
-                while (high - low > 1 && Attempts < _maxAttempts)
+                while (high - low > 1 && _attempts < _maxAttempts)
                 {
                     var mid = low + (high - low) / 2;
 
@@ -281,7 +279,7 @@ internal sealed class Shrinker<T>
     {
         var improved = false;
 
-        for (var i = 0; i < _best.Choices.Count && Attempts < _maxAttempts; i++)
+        for (var i = 0; i < _best.Choices.Count && _attempts < _maxAttempts; i++)
         {
             if (_best.Choices[i].IsMinimal)
             {
@@ -294,7 +292,7 @@ internal sealed class Shrinker<T>
                 continue;
             }
 
-            while (Attempts < _maxAttempts && i < _best.Choices.Count && !_best.Choices[i].IsMinimal)
+            while (_attempts < _maxAttempts && i < _best.Choices.Count && !_best.Choices[i].IsMinimal)
             {
                 improved |= BinarySearchChoice(i);
 
@@ -321,7 +319,7 @@ internal sealed class Shrinker<T>
         var low = 0UL;
         var high = _best.Choices[index].Value;
 
-        while (high - low > 1 && Attempts < _maxAttempts)
+        while (high - low > 1 && _attempts < _maxAttempts)
         {
             var mid = low + (high - low) / 2;
 
@@ -350,7 +348,7 @@ internal sealed class Shrinker<T>
 
     private bool StepChoiceDown(int index)
     {
-        for (var step = 1UL; step <= MaxLinearSteps && Attempts < _maxAttempts; step++)
+        for (var step = 1UL; step <= MaxLinearSteps && _attempts < _maxAttempts; step++)
         {
             if (index >= _best.Choices.Count || _best.Choices[index].Value < step)
             {
@@ -404,7 +402,7 @@ internal sealed class Shrinker<T>
                 continue;
             }
 
-            if (chainsTried == maxChainsToTry || Attempts >= _maxAttempts)
+            if (chainsTried == maxChainsToTry || _attempts >= _maxAttempts)
             {
                 break;
             }
@@ -474,12 +472,12 @@ internal sealed class Shrinker<T>
 
     private bool TryAccept(IReadOnlyList<Choice> candidate)
     {
-        if (Attempts >= _maxAttempts)
+        if (_attempts >= _maxAttempts)
         {
             return false;
         }
 
-        Attempts++;
+        _attempts++;
 
         var run = ExampleRun<T>.Execute(ChoiceSource.FromPrefix(candidate), _generator, _body);
 
@@ -489,7 +487,7 @@ internal sealed class Shrinker<T>
         }
 
         _best = run;
-        Shrinks++;
+        _shrinks++;
         return true;
     }
 

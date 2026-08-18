@@ -109,16 +109,16 @@ public sealed class Property<T>
         CheckOptions options)
     {
         var shrinker = new Shrinker<T>(_generator, _body, failure, options.MaxShrinkAttempts);
-        var minimal = shrinker.Run();
+        var outcome = shrinker.Run();
 
         return PropertyResult<T>.Falsified(
             replay.Seed,
             testsRun,
             discards,
             new Counterexample<T>(failure.Value, failure.Exception),
-            new Counterexample<T>(minimal.Value, minimal.Exception),
+            new Counterexample<T>(outcome.Minimal.Value, outcome.Minimal.Exception),
             replay,
-            shrinker.Attempts,
-            shrinker.Shrinks);
+            outcome.Attempts,
+            outcome.Shrinks);
     }
 }
