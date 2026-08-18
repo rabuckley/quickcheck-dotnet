@@ -104,6 +104,8 @@ Generator<Money> money = Generate.From(source =>
 
 A generator built this way shrinks just as well as the built-in ones: shrinking works on the choices drawn from the `ChoiceSource`, not on the finished value, so it needs no knowledge of `Money` (see [How shrinking works](#how-shrinking-works)).
 
+A type can declare its own default generator by implementing `IArbitrary<T>`; the xUnit adapter below uses it for parameters of that type.
+
 Use `generator.Sample(count, seed)` to eyeball what a generator produces before you rely on it.
 
 ## Properties
@@ -143,6 +145,50 @@ Property.ForAll(generator, body).Assert(new CheckOptions { Replay = Replay.Parse
 ```
 
 That runs only the failing example (and shrinks it as usual). Once fixed, drop the option and the test goes back to exploring fresh inputs each run.
+
+## xUnit.net v3
+
+The `QuickCheck.Xunit.v3` package adds a `[Property]` attribute: xUnit generates each parameter of the method, runs it on many examples, and reports the shrunk counterexample when it fails. Everything else about the test — fixtures, `ITestOutputHelper`, `Skip`, `Timeout`, traits — works as for `[Fact]`.
+
+```shell
+dotnet add package QuickCheck.Xunit.v3
+```
+
+```csharp
+using QuickCheck;
+using QuickCheck.Xunit;
+
+public sealed class EncodingTests
+{
+    [Property]
+    public void Round_trips(string s) => Assert.Equal(s, Decode(Encode(s)));
+
+    [Property(RunCount = 500)]
+    public bool Sorting_is_idempotent(List<int> items) =>
+        items.Order().SequenceEqual(items.Order().Order());
+
+    [Property]
+    public async Task Handles_any_request(Request request) => await Handle(request);
+}
+```
+
+Methods may return `void`, `bool`, `Task`, `ValueTask`, `Task<bool>`, or `ValueTask<bool>`. A parameter's generator is found, in order, from:
+
+1. `[Generator(nameof(Member))]` on the parameter — a static `Generator<T>` property, field, or parameterless method on the test class (or on `Generators`, or on an explicit `[Generator(typeof(Source), "Member")]`). It applies to a record's positional parameters too, so a nested member can name its own generator.
+2. A **public** static `Generator<T>` member of the attribute's `Generators` type, matched by type — this also applies to nested members of records.
+3. The type's `IArbitrary<T>` implementation.
+4. Built-ins: integers, `bool`, `char`, `string`, enums, `Nullable<T>`, arrays, `List<T>` and its interfaces, tuples, and any type with a single public constructor (records included), derived recursively. Nullable annotations add `null` examples.
+
+Missing or ambiguous generators are reported at discovery, naming the parameter. A failure reads:
+
+```
+Falsified after 12 tests and 34 shrinks (seed 3468194371).
+  Minimal counterexample: s = "\u0000"
+  Original counterexample: s = "K\u0000ap9"
+  Replay with: [Property(Replay = "3468194371:11")]
+```
+
+`[Property]` accepts `RunCount`, `Seed`, `Replay`, `MaxShrinkAttempts`, and `Generators`. A passing property writes `Passed 100 tests (seed …)` to the test output. Requires xunit.v3 4.0.0 or later, on the reflection-based extensibility surface (`xunit.v3.extensibility.core`): generators are derived by reflection, so `[Property]` does not work with `xunit.v3.extensibility.core.aot`, the code-generation surface for native AOT.
 
 ## How shrinking works
 

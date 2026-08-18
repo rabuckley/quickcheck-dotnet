@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/QuickCheck.Xunit.v3/QuickCheck.Xunit.v3.csproj" />
     <Project Path="src/QuickCheck/QuickCheck.csproj" />
   </Folder>
   <Folder Name="/test/">
     <Project Path="test/QuickCheck.Tests/QuickCheck.Tests.csproj" />
+    <Project Path="test/QuickCheck.Xunit.v3.Tests/QuickCheck.Xunit.v3.Tests.csproj" />
   </Folder>
 </Solution>

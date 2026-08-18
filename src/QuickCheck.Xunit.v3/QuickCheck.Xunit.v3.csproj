@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>QuickCheck.Xunit</RootNamespace>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <PackageId>QuickCheck.Xunit.v3</PackageId>
+        <Description>xUnit.net v3 adapter for QuickCheck: write property-based tests as [Property] methods whose parameters are generated, shrunk, and reported by QuickCheck.</Description>
+        <PackageTags>QuickCheck, xunit, xunit.v3, Property-Based Testing, Testing</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- The extensibility surface (test cases, runners) moved between
+             xunit.v3 3.x and 4.x; 4.0.0 is the earliest version this adapter
+             is built and tested against. -->
+        <PackageReference Include="xunit.v3.extensibility.core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\QuickCheck\QuickCheck.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="QuickCheck.Xunit.v3.Tests" />
+    </ItemGroup>
+
+</Project>
