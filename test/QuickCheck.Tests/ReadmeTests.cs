@@ -1,88 +1,55 @@
-﻿using QuickCheck.Generators;
-
 namespace QuickCheck.Tests;
 
+/// <summary>
+/// The samples in readme.md, kept compiling and passing.
+/// </summary>
 public sealed class ReadmeTests
 {
-    // This file tests all code samples in the README.md file. Any changes to the README.md file must be reflected here.
+    private readonly record struct Money(long Amount, string Currency);
 
     [Fact]
-    public void ReverseReverse()
+    public void Reversing_twice_is_the_identity()
     {
-        static Memory<T> Reverse<T>(Memory<T> memory)
+        Property
+            .ForAll(Generate.Integer<int>().List(), list =>
+                list.AsEnumerable().Reverse().Reverse().SequenceEqual(list))
+            .Assert();
+    }
+
+    [Fact]
+    public void Dependent_generation_with_query_syntax()
+    {
+        var slices =
+            from array in Generate.Integer<int>().Array(minLength: 1)
+            from start in Generate.Between(0, array.Length - 1)
+            from length in Generate.Between(0, array.Length - start)
+            select (array, start, length);
+
+        Property.ForAll(slices, slice =>
         {
-            var span = memory.Span;
-            var reversed = new T[span.Length];
-
-            for (var i = 0; i < span.Length; i++)
-            {
-                reversed[span.Length - i - 1] = span[i];
-            }
-
-            return new Memory<T>(reversed);
-        }
-
-        var qc = QuickChecker.CreateDefault();
-
-        var generator = new ArbitraryMemoryGenerator<int>(
-            ArbitraryInt32Generator.Default,
-            Random.Shared,
-            maximumSize: 32);
-
-        qc.AddGenerator(generator);
-
-        var result = qc.Run(
-            target: static (Memory<int> memory) => Reverse(Reverse(memory)).Span.SequenceEqual(memory.Span),
-            validate: static (result) => result);
-
-        Assert.False(result.IsError);
+            var (array, start, length) = slice;
+            Assert.Equal(length, array.AsSpan(start, length).Length);
+        }).Assert();
     }
 
     [Fact]
-    public void CreateDefaultQuickChecker()
+    public void Custom_generators_and_multi_argument_properties()
     {
-        // Using the default options
-        var qc = QuickChecker.CreateDefault();
+        Generator<Money> money = Generate.From(source =>
+            new Money(source.Draw(Generate.Between(0L, 1_000_000L)), source.Draw(Generate.Elements("GBP", "USD"))));
 
-        // Using custom options
-        var configuredQc = QuickChecker.CreateDefault(options =>
+        Property.ForAll(money, money, (a, b) =>
         {
-            options.RunCount = 1000;
-            options.Random = new Random(42);
-        });
-    }
+            Property.Assume(a.Currency == b.Currency);
+            return new Money(a.Amount + b.Amount, a.Currency) == new Money(b.Amount + a.Amount, b.Currency);
+        }).Assert();
 
-    [Fact]
-    public void CreateEmptyQuickChecker()
-    {
-        // Using the default options
-        var qc = QuickChecker.CreateEmpty();
+        var evens = Generate.Integer<int>().Select(x => x * 2);
+        var maybe = Generate.String().OrNull();
+        var maybeInt = Generate.Integer<int>().Nullable();
+        var either = Generate.OneOf(Generate.Constant(1), Generate.Constant(2));
 
-        // Using custom options
-        var configuredQc = QuickChecker.CreateEmpty(options =>
-        {
-            options.RunCount = 1000;
-            options.Random = new Random(42);
-        });
-    }
-
-    [Fact]
-    public void AddGenerator()
-    {
-        var qc = QuickChecker.CreateEmpty();
-        qc.AddGenerator(ArbitraryInt32Generator.Default);
-    }
-
-    [Fact]
-    public void RunATest()
-    {
-        static int NotSoSafeDivide(int a, int b) => a / b;
-
-        var qc = QuickChecker.CreateDefault();
-
-        var result = qc.Run(static (int a, int b) => NotSoSafeDivide(a, b));
-
-        Assert.True(result.IsError);
-        Assert.True(result.Exception is DivideByZeroException);
+        Property.ForAll(evens, maybe, maybeInt, (e, s, i) => e % 2 == 0).Assert();
+        Assert.All(either.Sample(20), x => Assert.InRange(x, 1, 2));
     }
 }

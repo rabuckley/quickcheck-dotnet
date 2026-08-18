@@ -2,6 +2,7 @@
 
     <PropertyGroup>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <IsPackable>true</IsPackable>
         <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
@@ -14,5 +15,9 @@
         <PackageProjectUrl>https://github.com/rabuckley/quickcheck-dotnet</PackageProjectUrl>
         <RepositoryUrl>https://github.com/rabuckley/quickcheck-dotnet</RepositoryUrl>
     </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="QuickCheck.Tests" />
+    </ItemGroup>
 
 </Project>
