@@ -62,7 +62,7 @@ public sealed class PropertyTests
         var property = Property.ForAll(Generate.Integer<long>().List(), static items => items.Count < 5);
 
         var first = property.Check(new CheckOptions { Seed = 5 });
-        var replayed = property.Check(new CheckOptions { Replay = Replay.Parse(first.Replay!.ToString()) });
+        var replayed = property.Check(new CheckOptions { Replay = Replay.Parse(first.Replay!.Value.ToString()) });
 
         Assert.True(first.IsFalsified);
         Assert.True(replayed.IsFalsified);
