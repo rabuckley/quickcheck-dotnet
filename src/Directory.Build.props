@@ -1,0 +1,14 @@
+<Project>
+  <!-- MSBuild stops at the first Directory.Build.props it finds walking up, so
+       the repository-wide settings have to be pulled in explicitly. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove($(MSBuildThisFile), $(MSBuildThisFileDirectory)..))" />
+
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Version>0.1.0</Version>
+    <Authors>Ryan Buckley</Authors>
+    <PackageProjectUrl>https://github.com/rabuckley/quickcheck-dotnet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rabuckley/quickcheck-dotnet</RepositoryUrl>
+  </PropertyGroup>
+</Project>

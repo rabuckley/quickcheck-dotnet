@@ -5,5 +5,6 @@
     <Nullable>enable</Nullable>
     <LangVersion>14</LangVersion>
     <AnalysisLevel>preview</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 </Project>

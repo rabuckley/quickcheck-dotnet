@@ -1,19 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-        <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <IsPackable>true</IsPackable>
         <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <PropertyGroup>
         <PackageId>QuickCheck</PackageId>
-        <Version>0.1.0</Version>
-        <Authors>Ryan Buckley</Authors>
+        <Description>Property-based testing for .NET: describe a property over generated inputs, and QuickCheck searches for a counterexample and shrinks it to a minimal failing case.</Description>
         <PackageTags>QuickCheck, Fuzz, Fuzzer, Testing</PackageTags>
-        <PackageProjectUrl>https://github.com/rabuckley/quickcheck-dotnet</PackageProjectUrl>
-        <RepositoryUrl>https://github.com/rabuckley/quickcheck-dotnet</RepositoryUrl>
     </PropertyGroup>
 
     <ItemGroup>
