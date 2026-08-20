@@ -31,13 +31,14 @@ public sealed class PropertyDiscovererTests
     [Fact]
     public async Task Valid_methods_become_a_single_property_test_case_carrying_their_settings()
     {
-        var attribute = new PropertyAttribute { RunCount = 7, Seed = 9, MaxShrinkAttempts = 3, Generators = typeof(Samples) };
+        var attribute = new PropertyAttribute { RunCount = 7, Seed = 9, MaxShrinkAttempts = 3, MaxShrinkWork = 4, Generators = typeof(Samples) };
 
         var testCase = Assert.IsType<PropertyTestCase>(await TestHost.Discover(typeof(Samples), nameof(Samples.Fine), attribute));
 
         Assert.Equal(7, testCase.Options.RunCount);
         Assert.Equal(9UL, testCase.Options.Seed);
         Assert.Equal(3, testCase.Options.MaxShrinkAttempts);
+        Assert.Equal(4, testCase.Options.MaxShrinkWork);
         Assert.Null(testCase.Options.Replay);
         Assert.Equal(typeof(Samples), testCase.Generators);
         Assert.Equal("QuickCheck.Xunit.Tests.PropertyDiscovererTests+Samples.Fine", testCase.TestCaseDisplayName);
@@ -130,7 +131,7 @@ public sealed class PropertyTestCaseSerializationTests
     [Fact]
     public async Task Test_cases_round_trip_through_xunit_serialization_with_their_settings()
     {
-        var attribute = new PropertyAttribute { RunCount = 7, Seed = 9, Replay = "9:3", MaxShrinkAttempts = 3, Generators = typeof(Samples) };
+        var attribute = new PropertyAttribute { RunCount = 7, Seed = 9, Replay = "9:3", MaxShrinkAttempts = 3, MaxShrinkWork = 4, Generators = typeof(Samples) };
         var original = Assert.IsType<PropertyTestCase>(await Harness.TestHost.Discover(typeof(Samples), nameof(Samples.Fine), attribute));
 
         var serialized = global::Xunit.Sdk.SerializationHelper.Instance.Serialize(original);

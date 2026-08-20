@@ -61,7 +61,8 @@ public sealed record CheckOptions
 
     /// <summary>
     /// Gets the maximum number of candidate examples the shrinker may evaluate while minimising a
-    /// failure. The default is 10,000; zero disables shrinking.
+    /// failure. The default is 10,000; zero disables shrinking. See
+    /// <see cref="MaxShrinkWork"/>, which bounds the replay work those candidates may cost.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// The value is negative.
@@ -75,4 +76,26 @@ public sealed record CheckOptions
             field = value;
         }
     } = 10_000;
+
+    /// <summary>
+    /// Gets the maximum total number of choices the shrinker may replay while minimising a failure,
+    /// summed over the candidates it evaluates: a candidate costs one attempt and as many choices as
+    /// it contains. Shrinking stops when this or <see cref="MaxShrinkAttempts"/> is spent, whichever
+    /// comes first, so a counterexample with a very large choice sequence gives up early instead of
+    /// spending the whole attempt budget replaying it. The default is 5,000,000, which leaves
+    /// examples of up to 500 choices limited only by <see cref="MaxShrinkAttempts"/>; zero disables
+    /// shrinking.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The value is negative.
+    /// </exception>
+    public int MaxShrinkWork
+    {
+        get;
+        init
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    } = 5_000_000;
 }

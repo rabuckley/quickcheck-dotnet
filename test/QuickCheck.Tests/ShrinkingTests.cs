@@ -16,6 +16,7 @@ public sealed class ShrinkingTests
 
         Assert.True(result.IsFalsified);
         Assert.Equal(102, result.Minimal.Value);
+        Assert.Equal(ShrinkLimit.None, result.ShrinkLimit);
     }
 
     [Fact]
@@ -125,5 +126,33 @@ public sealed class ShrinkingTests
         Assert.True(result.IsFalsified);
         Assert.Equal(0, result.ShrinkAttempts);
         Assert.Equal(result.Original.Value, result.Minimal.Value);
+        Assert.Equal(ShrinkLimit.Attempts, result.ShrinkLimit);
+    }
+
+    [Fact]
+    public void A_zero_work_budget_disables_shrinking()
+    {
+        var result = Property
+            .ForAll(Generate.Between(1000, 1_000_000), static x => x < 1000)
+            .Check(Seeded with { MaxShrinkWork = 0 });
+
+        Assert.True(result.IsFalsified);
+        Assert.Equal(0, result.ShrinkAttempts);
+        Assert.Equal(result.Original.Value, result.Minimal.Value);
+    }
+
+    [Fact]
+    public void The_work_budget_stops_shrinking_a_large_example()
+    {
+        // Each candidate replays about 2,000 choices, so the 20,000-choice budget
+        // buys roughly ten of them — nowhere near the 10,000 attempts still allowed.
+        var result = Property
+            .ForAll(Generate.Integer<int>().List(minLength: 2_000, maxLength: 2_000), static items => items.Count < 5)
+            .Check(Seeded with { MaxShrinkAttempts = 10_000, MaxShrinkWork = 20_000 });
+
+        Assert.True(result.IsFalsified);
+        Assert.InRange(result.ShrinkAttempts, 1, 20);
+        Assert.Equal(ShrinkLimit.Work, result.ShrinkLimit);
+        Assert.Contains("MaxShrinkWork", result.ToString());
     }
 }

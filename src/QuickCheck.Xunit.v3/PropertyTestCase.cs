@@ -130,6 +130,7 @@ public sealed class PropertyTestCase : XunitTestCase, ISelfExecutingXunitTestCas
         info.AddValue("qc.replay", Options.Replay?.ToString());
         info.AddValue("qc.mdr", Options.MaxDiscardRatio);
         info.AddValue("qc.msa", Options.MaxShrinkAttempts);
+        info.AddValue("qc.msw", Options.MaxShrinkWork);
         info.AddValue("qc.generators", Generators);
         info.AddValue("qc.error", Error);
     }
@@ -146,7 +147,8 @@ public sealed class PropertyTestCase : XunitTestCase, ISelfExecutingXunitTestCas
             Seed = info.GetValue<ulong?>("qc.seed"),
             Replay = info.GetValue<string>("qc.replay") is { } replay ? QuickCheck.Replay.Parse(replay) : null,
             MaxDiscardRatio = info.GetValue<int>("qc.mdr"),
-            MaxShrinkAttempts = info.GetValue<int>("qc.msa")
+            MaxShrinkAttempts = info.GetValue<int>("qc.msa"),
+            MaxShrinkWork = info.GetValue<int>("qc.msw")
         };
         Generators = info.GetValue<Type>("qc.generators");
         Error = info.GetValue<string>("qc.error");

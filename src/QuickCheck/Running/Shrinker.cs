@@ -14,25 +14,24 @@ internal sealed class Shrinker<T>
     private readonly Generator<T> _generator;
     private readonly Func<T, ValueTask<bool>> _body;
     private readonly FailureKey _key;
-    private readonly int _maxAttempts;
+    private readonly ShrinkBudget _budget;
     private readonly CancellationToken _cancellationToken;
 
     private ExampleRun<T> _best;
-    private int _attempts;
     private int _shrinks;
 
     public Shrinker(
         Generator<T> generator,
         Func<T, ValueTask<bool>> body,
         ExampleRun<T> failure,
-        int maxAttempts,
+        CheckOptions options,
         CancellationToken cancellationToken)
     {
         _generator = generator;
         _body = body;
         _best = failure;
         _key = failure.Key;
-        _maxAttempts = maxAttempts;
+        _budget = new ShrinkBudget(options.MaxShrinkAttempts, options.MaxShrinkWork);
         _cancellationToken = cancellationToken;
     }
 
@@ -49,9 +48,15 @@ internal sealed class Shrinker<T>
             improved |= await MinimiseDuplicatesAsync().ConfigureAwait(false);
             improved |= await MinimiseChoicesAsync().ConfigureAwait(false);
             improved |= await RedistributePairsAsync().ConfigureAwait(false);
-        } while (improved && _attempts < _maxAttempts);
+        } while (improved && !_budget.Exhausted);
 
-        return new ShrinkOutcome<T>(_best, _attempts, _shrinks);
+        return new ShrinkOutcome<T>
+        {
+            Minimal = _best,
+            Attempts = _budget.Attempts,
+            Shrinks = _shrinks,
+            Limit = _budget.LimitReached
+        };
     }
 
     /// <summary>
@@ -64,7 +69,7 @@ internal sealed class Shrinker<T>
 
         for (var i = _best.Spans.Count - 1; i >= 0; i--)
         {
-            if (_attempts >= _maxAttempts)
+            if (_budget.Exhausted)
             {
                 break;
             }
@@ -102,7 +107,7 @@ internal sealed class Shrinker<T>
 
         for (var i = _best.Spans.Count - 1; i >= 0; i--)
         {
-            if (_attempts >= _maxAttempts)
+            if (_budget.Exhausted)
             {
                 break;
             }
@@ -155,7 +160,7 @@ internal sealed class Shrinker<T>
 
         foreach (var indices in groups)
         {
-            if (_attempts >= _maxAttempts)
+            if (_budget.Exhausted)
             {
                 break;
             }
@@ -176,7 +181,7 @@ internal sealed class Shrinker<T>
                 continue;
             }
 
-            while (high - low > 1 && _attempts < _maxAttempts)
+            while (high - low > 1 && !_budget.Exhausted)
             {
                 var mid = low + (high - low) / 2;
 
@@ -222,7 +227,7 @@ internal sealed class Shrinker<T>
         const int window = 4;
         var improved = false;
 
-        for (var i = 0; i < _best.Choices.Count && _attempts < _maxAttempts; i++)
+        for (var i = 0; i < _best.Choices.Count && !_budget.Exhausted; i++)
         {
             for (var j = i + 1; j <= i + window && j < _best.Choices.Count; j++)
             {
@@ -248,7 +253,7 @@ internal sealed class Shrinker<T>
                 var low = 0UL;
                 var high = maxTransfer;
 
-                while (high - low > 1 && _attempts < _maxAttempts)
+                while (high - low > 1 && !_budget.Exhausted)
                 {
                     var mid = low + (high - low) / 2;
 
@@ -288,7 +293,7 @@ internal sealed class Shrinker<T>
     {
         var improved = false;
 
-        for (var i = 0; i < _best.Choices.Count && _attempts < _maxAttempts; i++)
+        for (var i = 0; i < _best.Choices.Count && !_budget.Exhausted; i++)
         {
             if (_best.Choices[i].IsMinimal)
             {
@@ -301,7 +306,7 @@ internal sealed class Shrinker<T>
                 continue;
             }
 
-            while (_attempts < _maxAttempts && i < _best.Choices.Count && !_best.Choices[i].IsMinimal)
+            while (!_budget.Exhausted && i < _best.Choices.Count && !_best.Choices[i].IsMinimal)
             {
                 improved |= await BinarySearchChoiceAsync(i).ConfigureAwait(false);
 
@@ -328,7 +333,7 @@ internal sealed class Shrinker<T>
         var low = 0UL;
         var high = _best.Choices[index].Value;
 
-        while (high - low > 1 && _attempts < _maxAttempts)
+        while (high - low > 1 && !_budget.Exhausted)
         {
             var mid = low + (high - low) / 2;
 
@@ -357,7 +362,7 @@ internal sealed class Shrinker<T>
 
     private async ValueTask<bool> StepChoiceDownAsync(int index)
     {
-        for (var step = 1UL; step <= MaxLinearSteps && _attempts < _maxAttempts; step++)
+        for (var step = 1UL; step <= MaxLinearSteps && !_budget.Exhausted; step++)
         {
             if (index >= _best.Choices.Count || _best.Choices[index].Value < step)
             {
@@ -411,7 +416,7 @@ internal sealed class Shrinker<T>
                 continue;
             }
 
-            if (chainsTried == maxChainsToTry || _attempts >= _maxAttempts)
+            if (chainsTried == maxChainsToTry || _budget.Exhausted)
             {
                 break;
             }
@@ -481,13 +486,12 @@ internal sealed class Shrinker<T>
 
     private async ValueTask<bool> TryAcceptAsync(IReadOnlyList<Choice> candidate)
     {
-        if (_attempts >= _maxAttempts)
+        _cancellationToken.ThrowIfCancellationRequested();
+
+        if (!_budget.TryCharge(candidate.Count))
         {
             return false;
         }
-
-        _cancellationToken.ThrowIfCancellationRequested();
-        _attempts++;
 
         var run = await ExampleRun<T>
             .ExecuteAsync(ChoiceSource.FromPrefix(candidate), _generator, _body, _cancellationToken)

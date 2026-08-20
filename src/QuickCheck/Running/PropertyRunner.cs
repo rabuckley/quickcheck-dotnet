@@ -112,8 +112,7 @@ internal sealed class PropertyRunner<T>
         CheckOptions options,
         CancellationToken cancellationToken)
     {
-        var shrinker = new Shrinker<T>(
-            _generator, _body, failure, options.MaxShrinkAttempts, cancellationToken);
+        var shrinker = new Shrinker<T>(_generator, _body, failure, options, cancellationToken);
         var outcome = await shrinker.RunAsync().ConfigureAwait(false);
 
         return PropertyResult<T>.Falsified(
@@ -124,6 +123,7 @@ internal sealed class PropertyRunner<T>
             new Counterexample<T>(outcome.Minimal.Value, outcome.Minimal.Exception),
             replay,
             outcome.Attempts,
-            outcome.Shrinks);
+            outcome.Shrinks,
+            outcome.Limit);
     }
 }

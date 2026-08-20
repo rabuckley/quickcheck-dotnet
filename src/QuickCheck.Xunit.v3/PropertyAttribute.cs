@@ -69,6 +69,12 @@ public class PropertyAttribute(
     public int MaxShrinkAttempts { get; set; } = -1;
 
     /// <summary>
+    /// The shrinking work budget; see <see cref="CheckOptions.MaxShrinkWork"/>.
+    /// Negative (the default) uses the library default; zero disables shrinking.
+    /// </summary>
+    public int MaxShrinkWork { get; set; } = -1;
+
+    /// <summary>
     /// A type whose public static <c>Generator&lt;T&gt;</c> properties, fields, or
     /// parameterless methods supply the generator for any parameter (or
     /// nested member) of type <c>T</c>. Also searched, private members
@@ -109,6 +115,11 @@ public class PropertyAttribute(
         if (MaxShrinkAttempts >= 0)
         {
             options = options with { MaxShrinkAttempts = MaxShrinkAttempts };
+        }
+
+        if (MaxShrinkWork >= 0)
+        {
+            options = options with { MaxShrinkWork = MaxShrinkWork };
         }
 
         return options;

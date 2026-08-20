@@ -4,41 +4,30 @@ using System.Text;
 namespace QuickCheck;
 
 /// <summary>
-/// Represents the result of checking a <see cref="Property{T}"/> or an
-/// <see cref="AsyncProperty{T}"/>.
+/// Represents the result of checking a <see cref="Property{T}"/> or an <see cref="AsyncProperty{T}"/>.
 /// </summary>
 /// <typeparam name="T">The type of value the property was checked over.</typeparam>
 public sealed class PropertyResult<T>
 {
-    private PropertyResult(
-        PropertyOutcome outcome,
-        ulong seed,
-        int testsRun,
-        int discards,
-        Counterexample<T>? original,
-        Counterexample<T>? minimal,
-        Replay? replay,
-        int shrinkAttempts,
-        int shrinks)
+    private PropertyResult()
     {
-        Outcome = outcome;
-        Seed = seed;
-        TestsRun = testsRun;
-        Discards = discards;
-        Original = original;
-        Minimal = minimal;
-        Replay = replay;
-        ShrinkAttempts = shrinkAttempts;
-        Shrinks = shrinks;
     }
 
-    internal static PropertyResult<T> Passed(ulong seed, int testsRun, int discards) =>
-        new(PropertyOutcome.Passed, seed, testsRun, discards,
-            original: null, minimal: null, replay: null, shrinkAttempts: 0, shrinks: 0);
+    internal static PropertyResult<T> Passed(ulong seed, int testsRun, int discards) => new()
+    {
+        Outcome = PropertyOutcome.Passed,
+        Seed = seed,
+        TestsRun = testsRun,
+        Discards = discards
+    };
 
-    internal static PropertyResult<T> Exhausted(ulong seed, int testsRun, int discards) =>
-        new(PropertyOutcome.Exhausted, seed, testsRun, discards,
-            original: null, minimal: null, replay: null, shrinkAttempts: 0, shrinks: 0);
+    internal static PropertyResult<T> Exhausted(ulong seed, int testsRun, int discards) => new()
+    {
+        Outcome = PropertyOutcome.Exhausted,
+        Seed = seed,
+        TestsRun = testsRun,
+        Discards = discards
+    };
 
     internal static PropertyResult<T> Falsified(
         ulong seed,
@@ -48,48 +37,67 @@ public sealed class PropertyResult<T>
         Counterexample<T> minimal,
         Replay replay,
         int shrinkAttempts,
-        int shrinks) =>
-        new(PropertyOutcome.Falsified, seed, testsRun, discards,
-            original, minimal, replay, shrinkAttempts, shrinks);
+        int shrinks,
+        ShrinkLimit shrinkLimit) => new()
+    {
+        Outcome = PropertyOutcome.Falsified,
+        Seed = seed,
+        TestsRun = testsRun,
+        Discards = discards,
+        Original = original,
+        Minimal = minimal,
+        Replay = replay,
+        ShrinkAttempts = shrinkAttempts,
+        Shrinks = shrinks,
+        ShrinkLimit = shrinkLimit
+    };
 
     /// <summary>Gets the outcome of the check.</summary>
-    public PropertyOutcome Outcome { get; }
+    public required PropertyOutcome Outcome { get; init; }
 
     /// <summary>Gets the seed the examples were generated from.</summary>
-    public ulong Seed { get; }
+    public required ulong Seed { get; init; }
 
     /// <summary>
     /// Gets the number of examples that passed, or, when the property was falsified, the number that
     /// passed before the failing one.
     /// </summary>
-    public int TestsRun { get; }
+    public required int TestsRun { get; init; }
 
     /// <summary>Gets the number of examples discarded by assumptions and filters.</summary>
-    public int Discards { get; }
+    public required int Discards { get; init; }
 
     /// <summary>
     /// Gets the first falsifying example found, before shrinking, or <see langword="null"/> if the
     /// property was not falsified.
     /// </summary>
-    public Counterexample<T>? Original { get; }
+    public Counterexample<T>? Original { get; init; }
 
     /// <summary>
     /// Gets the smallest falsifying example the shrinker found, which is <see cref="Original"/> if it
     /// could not be shrunk, or <see langword="null"/> if the property was not falsified.
     /// </summary>
-    public Counterexample<T>? Minimal { get; }
+    public Counterexample<T>? Minimal { get; init; }
 
     /// <summary>
     /// Gets the token that reproduces the failing example through <see cref="CheckOptions.Replay"/>, or
     /// <see langword="null"/> if the property was not falsified.
     /// </summary>
-    public Replay? Replay { get; }
+    public Replay? Replay { get; init; }
 
     /// <summary>Gets the number of candidate examples the shrinker evaluated.</summary>
-    public int ShrinkAttempts { get; }
+    public int ShrinkAttempts { get; init; }
 
     /// <summary>Gets the number of times the shrinker found a smaller failing example.</summary>
-    public int Shrinks { get; }
+    public int Shrinks { get; init; }
+
+    /// <summary>
+    /// Gets the budget limit that ended shrinking before it converged, or
+    /// <see cref="QuickCheck.ShrinkLimit.None"/> when shrinking ran until no candidate improved (or
+    /// the property was not falsified). When a limit was reached, <see cref="Minimal"/> may not be
+    /// the smallest example the shrinker could have found.
+    /// </summary>
+    public ShrinkLimit ShrinkLimit { get; init; }
 
     /// <summary>Gets a value indicating whether an example falsified the property.</summary>
     [MemberNotNullWhen(true, nameof(Original), nameof(Minimal), nameof(Replay))]
@@ -154,8 +162,10 @@ public sealed class PropertyResult<T>
             case PropertyOutcome.Exhausted:
                 report.Append($"Gave up after {TestsRun} tests");
                 AppendDiscards(report);
+
                 report.Append($" (seed {Seed}). Too many examples were discarded; ")
                     .Append("prefer generators that only produce valid inputs over Assume/Where.");
+
                 break;
 
             case PropertyOutcome.Falsified:
@@ -171,9 +181,20 @@ public sealed class PropertyResult<T>
                     AppendException(report, Original!.Exception);
                 }
 
+                if (ShrinkLimit is not ShrinkLimit.None)
+                {
+                    report.AppendLine();
+
+                    report.Append("  Shrinking stopped early: ")
+                        .Append(ShrinkLimit is ShrinkLimit.Attempts ? "MaxShrinkAttempts" : "MaxShrinkWork")
+                        .Append(" ran out, so a smaller counterexample may exist.");
+                }
+
                 report.AppendLine();
+
                 report.Append("  Replay with: ")
                     .Append(replayHint ?? $"new CheckOptions {{ Replay = Replay.Parse(\"{Replay}\") }}");
+
                 break;
         }
 
@@ -189,12 +210,17 @@ public sealed class PropertyResult<T>
 
         static void AppendException(StringBuilder builder, Exception? exception)
         {
-            if (exception is not null)
+            if (exception is null)
             {
-                builder.AppendLine();
-                builder.Append("    threw ").Append(exception.GetType().FullName)
-                    .Append(": ").Append(exception.Message);
+                return;
             }
+
+            builder.AppendLine();
+
+            builder.Append("    threw ")
+                .Append(exception.GetType().FullName)
+                .Append(": ")
+                .Append(exception.Message);
         }
     }
 }

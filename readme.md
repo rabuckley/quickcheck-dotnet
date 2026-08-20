@@ -126,7 +126,7 @@ Property.ForAll(Generate.String(), s =>
 - `Check(options)` returns a `PropertyResult<T>` with the outcome, seed, counterexamples, and shrink statistics, without throwing.
 - `Property.Assume(condition)` discards the current example when a precondition doesn't hold. Prefer a generator that only produces valid inputs; a property that discards too much is reported as `Exhausted` rather than silently passing on a handful of examples.
 
-`CheckOptions` controls the run: `RunCount` (default 100), `Seed`, `Replay` (re-run one specific failing example), `MaxShrinkAttempts`, and `MaxDiscardRatio`. Both `Assert` and `Check` also take a `CancellationToken` after the options; it aborts the check between examples and between shrink attempts, throwing rather than reporting a result. The body is not given the token, so a long-running body runs to completion — but a body that throws `OperationCanceledException` while that token is cancelled aborts the check rather than being recorded as a counterexample.
+`CheckOptions` controls the run: `RunCount` (default 100), `Seed`, `Replay` (re-run one specific failing example), `MaxShrinkAttempts`, `MaxShrinkWork` (the total choices shrinking may replay, which bounds the work one very large counterexample can cost), and `MaxDiscardRatio`. Both `Assert` and `Check` also take a `CancellationToken` after the options; it aborts the check between examples and between shrink attempts, throwing rather than reporting a result. The body is not given the token, so a long-running body runs to completion — but a body that throws `OperationCanceledException` while that token is cancelled aborts the check rather than being recorded as a counterexample.
 
 Bodies can be asynchronous. `ForAll` with a `Task`-returning body gives an `AsyncProperty<T>` with `CheckAsync` and `AssertAsync`; examples are awaited one at a time so shrinking stays deterministic.
 
@@ -188,7 +188,7 @@ Falsified after 12 tests and 34 shrinks (seed 3468194371).
   Replay with: [Property(Replay = "3468194371:11")]
 ```
 
-`[Property]` accepts `RunCount`, `Seed`, `Replay`, `MaxShrinkAttempts`, and `Generators`. A passing property writes `Passed 100 tests (seed …)` to the test output. Requires xunit.v3 4.0.0 or later, on the reflection-based extensibility surface (`xunit.v3.extensibility.core`): generators are derived by reflection, so `[Property]` does not work with `xunit.v3.extensibility.core.aot`, the code-generation surface for native AOT.
+`[Property]` accepts `RunCount`, `Seed`, `Replay`, `MaxShrinkAttempts`, `MaxShrinkWork`, and `Generators`. A passing property writes `Passed 100 tests (seed …)` to the test output. Requires xunit.v3 4.0.0 or later, on the reflection-based extensibility surface (`xunit.v3.extensibility.core`): generators are derived by reflection, so `[Property]` does not work with `xunit.v3.extensibility.core.aot`, the code-generation surface for native AOT.
 
 ## How shrinking works
 
