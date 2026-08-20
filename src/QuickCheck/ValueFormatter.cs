@@ -12,10 +12,18 @@ namespace QuickCheck;
 /// collections and records, and prints <see langword="null"/> explicitly, because the default
 /// <c>ToString</c> of such a value is either uninformative or does not format what it contains.
 /// </summary>
-internal static class ValueFormatter
+public static class ValueFormatter
 {
     private const int MaxCollectionItems = 100;
 
+    /// <summary>
+    /// Renders <paramref name="value"/> as it appears in failure reports.
+    /// </summary>
+    /// <remarks>
+    /// The output is for people reading a report, not for parsing: its exact text may change
+    /// between versions. Record and <see cref="Memory{T}"/> expansion rely on reflection, so
+    /// under trimming they fall back to the value's own <c>ToString</c>.
+    /// </remarks>
     public static string Format(object? value)
     {
         var builder = new StringBuilder();
