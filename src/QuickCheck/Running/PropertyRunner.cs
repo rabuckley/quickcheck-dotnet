@@ -38,8 +38,7 @@ internal sealed class PropertyRunner<T>
         return check.GetAwaiter().GetResult();
     }
 
-    public async ValueTask<PropertyResult<T>> CheckAsync(
-        CheckOptions options, CancellationToken cancellationToken)
+    public async ValueTask<PropertyResult<T>> CheckAsync(CheckOptions options, CancellationToken cancellationToken)
     {
         if (options.Replay is { } replay)
         {
@@ -56,7 +55,8 @@ internal sealed class PropertyRunner<T>
             cancellationToken.ThrowIfCancellationRequested();
 
             var source = ChoiceSource.FromRandom(Xoshiro256StarStar.ForRun(seed, run));
-            var example = await ExampleRun<T>.ExecuteAsync(source, _generator, _body, cancellationToken)
+
+            var example = await ExampleRun.ExecuteAsync(source, _generator, _body, cancellationToken)
                 .ConfigureAwait(false);
 
             switch (example.Status)
@@ -70,37 +70,48 @@ internal sealed class PropertyRunner<T>
 
                     if (discards > maxDiscards)
                     {
-                        return PropertyResult<T>.Exhausted(seed, passed, discards);
+                        return PropertyResult.Exhausted<T>(seed, passed, discards);
                     }
 
                     break;
 
                 case ExampleStatus.Failed:
                     return await FalsifyAsync(
-                            example, new Replay(seed, run), passed, discards, options, cancellationToken)
-                        .ConfigureAwait(false);
+                        example,
+                        new Replay(seed, run),
+                        passed,
+                        discards,
+                        options,
+                        cancellationToken).ConfigureAwait(false);
             }
         }
 
-        return PropertyResult<T>.Passed(seed, passed, discards);
+        return PropertyResult.Passed<T>(seed, passed, discards);
     }
 
     private async ValueTask<PropertyResult<T>> CheckSingleAsync(
-        Replay replay, CheckOptions options, CancellationToken cancellationToken)
+        Replay replay,
+        CheckOptions options,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         var source = ChoiceSource.FromRandom(Xoshiro256StarStar.ForRun(replay.Seed, replay.Run));
-        var example = await ExampleRun<T>.ExecuteAsync(source, _generator, _body, cancellationToken)
+
+        var example = await ExampleRun.ExecuteAsync(source, _generator, _body, cancellationToken)
             .ConfigureAwait(false);
 
         return example.Status switch
         {
             ExampleStatus.Failed => await FalsifyAsync(
-                    example, replay, testsRun: 0, discards: 0, options, cancellationToken)
-                .ConfigureAwait(false),
-            ExampleStatus.Passed => PropertyResult<T>.Passed(replay.Seed, testsRun: 1, discards: 0),
-            _ => PropertyResult<T>.Exhausted(replay.Seed, testsRun: 0, discards: 1)
+                example,
+                replay,
+                testsRun: 0,
+                discards: 0,
+                options,
+                cancellationToken).ConfigureAwait(false),
+            ExampleStatus.Passed => PropertyResult.Passed<T>(replay.Seed, testsRun: 1, discards: 0),
+            _ => PropertyResult.Exhausted<T>(replay.Seed, testsRun: 0, discards: 1)
         };
     }
 
@@ -115,7 +126,7 @@ internal sealed class PropertyRunner<T>
         var shrinker = new Shrinker<T>(_generator, _body, failure, options, cancellationToken);
         var outcome = await shrinker.RunAsync().ConfigureAwait(false);
 
-        return PropertyResult<T>.Falsified(
+        return PropertyResult.Falsified(
             replay.Seed,
             testsRun,
             discards,

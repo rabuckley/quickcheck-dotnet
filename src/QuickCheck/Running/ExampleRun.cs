@@ -3,35 +3,10 @@ using QuickCheck.Choices;
 namespace QuickCheck.Running;
 
 /// <summary>
-/// The result of generating one example and running the property on it, together with the choices
-/// consumed so the example can be replayed.
+/// Runs a property's body on one generated example, recording it as an <see cref="ExampleRun{T}"/>.
 /// </summary>
-internal sealed class ExampleRun<T>
+internal static class ExampleRun
 {
-    private ExampleRun(
-        ExampleStatus status,
-        IReadOnlyList<Choice> choices,
-        IReadOnlyList<ChoiceSpan> spans,
-        T value,
-        Exception? exception)
-    {
-        Status = status;
-        Choices = choices;
-        Spans = spans;
-        Value = value;
-        Exception = exception;
-    }
-
-    public ExampleStatus Status { get; }
-    public IReadOnlyList<Choice> Choices { get; }
-    public IReadOnlyList<ChoiceSpan> Spans { get; }
-    public T Value { get; }
-    public Exception? Exception { get; }
-
-    public FailureKey Key => new(Exception?.GetType());
-
-    public bool IsFailure => Status is ExampleStatus.Failed;
-
     /// <summary>
     /// Generates one example and runs <paramref name="body"/> on it.
     /// </summary>
@@ -40,7 +15,7 @@ internal sealed class ExampleRun<T>
     /// that abandoned the check because that token was cancelled — which propagates — from one that
     /// threw, which becomes a counterexample.
     /// </remarks>
-    public static async ValueTask<ExampleRun<T>> ExecuteAsync(
+    public static async ValueTask<ExampleRun<T>> ExecuteAsync<T>(
         ChoiceSource source,
         Generator<T> generator,
         Func<T, ValueTask<bool>> body,
@@ -54,20 +29,18 @@ internal sealed class ExampleRun<T>
         }
         catch (DiscardException)
         {
-            return new ExampleRun<T>(ExampleStatus.Discarded, source.Recorded, source.Spans, default!, null);
+            return Run(ExampleStatus.Discarded, default!);
         }
 
         try
         {
             var holds = await body(value).ConfigureAwait(false);
 
-            return holds
-                ? new ExampleRun<T>(ExampleStatus.Passed, source.Recorded, source.Spans, value, null)
-                : new ExampleRun<T>(ExampleStatus.Failed, source.Recorded, source.Spans, value, null);
+            return Run(holds ? ExampleStatus.Passed : ExampleStatus.Failed, value);
         }
         catch (DiscardException)
         {
-            return new ExampleRun<T>(ExampleStatus.Discarded, source.Recorded, source.Spans, value, null);
+            return Run(ExampleStatus.Discarded, value);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -75,7 +48,16 @@ internal sealed class ExampleRun<T>
         }
         catch (Exception exception)
         {
-            return new ExampleRun<T>(ExampleStatus.Failed, source.Recorded, source.Spans, value, exception);
+            return Run(ExampleStatus.Failed, value, exception);
         }
+
+        ExampleRun<T> Run(ExampleStatus status, T example, Exception? failure = null) => new()
+        {
+            Status = status,
+            Choices = source.Recorded,
+            Spans = source.Spans,
+            Value = example,
+            Exception = failure
+        };
     }
 }

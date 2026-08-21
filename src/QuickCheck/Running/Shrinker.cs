@@ -493,7 +493,7 @@ internal sealed class Shrinker<T>
             return false;
         }
 
-        var run = await ExampleRun<T>
+        var run = await ExampleRun
             .ExecuteAsync(ChoiceSource.FromPrefix(candidate), _generator, _body, _cancellationToken)
             .ConfigureAwait(false);
 
