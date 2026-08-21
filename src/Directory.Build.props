@@ -6,9 +6,26 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Version>0.1.0</Version>
     <Authors>Ryan Buckley</Authors>
     <PackageProjectUrl>https://github.com/rabuckley/quickcheck-dotnet</PackageProjectUrl>
     <RepositoryUrl>https://github.com/rabuckley/quickcheck-dotnet</RepositoryUrl>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+  </PropertyGroup>
+
+  <!--
+    MinVer sets AssemblyVersion to $(MinVerMajor).0.0.0, which is right from 1.0.0 on. Below 1.0.0
+    the minor is that boundary.
+  -->
+  <Target Name="SetPreReleaseAssemblyVersion" AfterTargets="MinVer" Condition="'$(MinVerMajor)' == '0'">
+    <PropertyGroup>
+      <AssemblyVersion>0.$(MinVerMinor).0.0</AssemblyVersion>
+    </PropertyGroup>
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+  </ItemGroup>
 </Project>
