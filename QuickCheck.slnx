@@ -1,4 +1,10 @@
 <Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="readme.md" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/QuickCheck.Xunit.v3/QuickCheck.Xunit.v3.csproj" />
     <Project Path="src/QuickCheck/QuickCheck.csproj" />
