@@ -7,7 +7,7 @@
     <PropertyGroup>
         <PackageId>QuickCheck</PackageId>
         <Description>Property-based testing for .NET: describe a property over generated inputs, and QuickCheck searches for a counterexample and shrinks it to a minimal failing case.</Description>
-        <PackageTags>QuickCheck, Fuzz, Fuzzer, Testing</PackageTags>
+        <PackageTags>QuickCheck;property-based-testing;fuzz;fuzzer;testing</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>

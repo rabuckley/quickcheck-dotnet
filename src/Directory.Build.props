@@ -6,9 +6,18 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <EnablePackageValidation>true</EnablePackageValidation>
+
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+
     <Authors>Ryan Buckley</Authors>
+    <Copyright>Copyright © Ryan Buckley</Copyright>
     <PackageProjectUrl>https://github.com/rabuckley/quickcheck-dotnet</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/rabuckley/quickcheck-dotnet</RepositoryUrl>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -26,6 +35,7 @@
   </Target>
 
   <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../readme.md" Pack="true" PackagePath="\" />
     <PackageReference Include="MinVer" PrivateAssets="all" />
   </ItemGroup>
 </Project>

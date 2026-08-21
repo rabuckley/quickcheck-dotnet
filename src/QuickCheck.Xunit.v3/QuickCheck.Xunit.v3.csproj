@@ -7,7 +7,7 @@
     <PropertyGroup>
         <PackageId>QuickCheck.Xunit.v3</PackageId>
         <Description>xUnit.net v3 adapter for QuickCheck: write property-based tests as [Property] methods whose parameters are generated, shrunk, and reported by QuickCheck.</Description>
-        <PackageTags>QuickCheck, xunit, xunit.v3, Property-Based Testing, Testing</PackageTags>
+        <PackageTags>QuickCheck;xunit;xunit.v3;property-based-testing;testing</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>
