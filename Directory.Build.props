@@ -11,4 +11,14 @@
   <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      A vulnerable dependency (NU1901-NU1904) fails the build through
+      `TreatWarningsAsErrors`. NU1900 and NU1905 mean the audit source did not
+      answer rather than that anything is wrong, so they stay warnings and a
+      nuget.org outage does not break every restore.
+    -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900;NU1905</WarningsNotAsErrors>
+  </PropertyGroup>
 </Project>
