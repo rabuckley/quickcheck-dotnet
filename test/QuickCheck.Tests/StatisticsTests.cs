@@ -154,7 +154,7 @@ public sealed class StatisticsTests
     }
 
     [Fact]
-    public void Cover_WithRequirementUnmet_ShouldFailWithTheShortfallFirstAndTheDistributionAfter()
+    public void Cover_WithRequirementUnmet_ShouldPassAndWarnWithTheShortfallFirstAndTheDistributionAfter()
     {
         // Arrange
         var n = 0;
@@ -166,17 +166,18 @@ public sealed class StatisticsTests
 
         // Act
         var result = property.Check(Hundred);
-        var exception = Assert.Throws<PropertyFailedException>(result.ThrowIfFailed);
+        var exception = Record.Exception(result.ThrowIfFailed);
 
         // Assert
-        Assert.Equal(PropertyOutcome.InsufficientCoverage, result.Outcome);
+        Assert.Equal(PropertyOutcome.Passed, result.Outcome);
+        Assert.Null(exception);
         Assert.False(Assert.Single(result.Statistics.Coverage).IsMet);
         Assert.Equal(
-            "Insufficient coverage after 100 tests (seed 1).\n"
+            "Passed 100 tests (seed 1).\n"
             + "  Only 10% tenth, but required 50%\n"
             + "  100% all\n"
             + "  10% tenth (required 50%)",
-            exception.Message.ReplaceLineEndings("\n"));
+            result.ToString().ReplaceLineEndings("\n"));
     }
 
     [Fact]
@@ -224,8 +225,11 @@ public sealed class StatisticsTests
         var allButOneResult = allButOne.Check(Hundred);
 
         // Assert
-        Assert.Equal(PropertyOutcome.Passed, everyExampleResult.Outcome);
-        Assert.Equal(PropertyOutcome.InsufficientCoverage, allButOneResult.Outcome);
+        Assert.True(Assert.Single(everyExampleResult.Statistics.Coverage).IsMet);
+        Assert.DoesNotContain("Only", everyExampleResult.ToString());
+        Assert.Equal(PropertyOutcome.Passed, allButOneResult.Outcome);
+        Assert.False(Assert.Single(allButOneResult.Statistics.Coverage).IsMet);
+        Assert.Contains("\n  Only 99% all, but required 100%", allButOneResult.ToString().ReplaceLineEndings("\n"));
     }
 
     [Fact]

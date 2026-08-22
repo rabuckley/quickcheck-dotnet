@@ -196,7 +196,7 @@ A property can pass while exercising almost nothing. Four methods report what ea
 
 - `Property.Classify(condition, label)` counts the example under `label` when `condition` holds. `Property.Label(label)` counts it unconditionally.
 - `Property.Collect(name, value)` counts the example under `value` in a table called `name`.
-- `Property.Cover(condition, minimumPercent, label)` counts like `Classify` and fails the check with `InsufficientCoverage` if fewer than `minimumPercent` of the examples hit the label.
+- `Property.Cover(condition, minimumPercent, label)` counts like `Classify` and states that at least `minimumPercent` of the examples should hit the label. A shortfall prints as a warning, `Only 3% label, but required 20%`, under the headline of a passing report.
 
 ```csharp
 Property.ForAll(Generate.Integer<int>().List(), list =>

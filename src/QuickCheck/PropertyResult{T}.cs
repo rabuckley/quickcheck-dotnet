@@ -128,6 +128,7 @@ public sealed class PropertyResult<T>
                 report.Append($"Passed {TestsRun} tests");
                 AppendDiscards(report);
                 report.Append($" (seed {Seed}).");
+                AppendShortfalls(report);
                 AppendStatistics(report);
                 break;
 
@@ -135,20 +136,7 @@ public sealed class PropertyResult<T>
                 report.Append($"Insufficient coverage after {TestsRun} tests");
                 AppendDiscards(report);
                 report.Append($" (seed {Seed}).");
-
-                foreach (var requirement in Statistics.Coverage.Where(static requirement => !requirement.IsMet))
-                {
-                    report.AppendLine();
-
-                    report.Append("  Only ")
-                        .Append(FormatPercent(requirement.Count))
-                        .Append("% ")
-                        .Append(requirement.Label)
-                        .Append(", but required ")
-                        .Append(FormatMinimum(requirement.MinimumPercent))
-                        .Append('%');
-                }
-
+                AppendShortfalls(report);
                 AppendStatistics(report);
                 break;
 
@@ -198,6 +186,22 @@ public sealed class PropertyResult<T>
             if (Discards > 0)
             {
                 builder.Append($" with {Discards} discards");
+            }
+        }
+
+        void AppendShortfalls(StringBuilder builder)
+        {
+            foreach (var requirement in Statistics.Coverage.Where(static requirement => !requirement.IsMet))
+            {
+                builder.AppendLine();
+
+                builder.Append("  Only ")
+                    .Append(FormatPercent(requirement.Count))
+                    .Append("% ")
+                    .Append(requirement.Label)
+                    .Append(", but required ")
+                    .Append(FormatMinimum(requirement.MinimumPercent))
+                    .Append('%');
             }
         }
 

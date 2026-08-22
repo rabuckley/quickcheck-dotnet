@@ -90,11 +90,7 @@ internal sealed class PropertyRunner<T>
             }
         }
 
-        var snapshot = statistics.ToPropertyStatistics(passed);
-
-        return snapshot.Coverage.All(static requirement => requirement.IsMet)
-            ? PropertyResult.Passed<T>(seed, passed, discards, snapshot)
-            : PropertyResult.InsufficientCoverage<T>(seed, passed, discards, snapshot);
+        return PropertyResult.Passed<T>(seed, passed, discards, statistics.ToPropertyStatistics(passed));
     }
 
     private async ValueTask<PropertyResult<T>> CheckSingleAsync(

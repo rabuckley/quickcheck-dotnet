@@ -123,7 +123,7 @@ public sealed class PropertyTestCaseTests
     }
 
     [Fact]
-    public async Task PropertyTestCase_WithUnmetCoverage_ShouldFailWithTheCoverageReport()
+    public async Task PropertyTestCase_WithUnmetCoverage_ShouldPassAndWriteTheWarning()
     {
         // Arrange
         var attribute = new PropertyAttribute { Seed = 5 };
@@ -132,11 +132,10 @@ public sealed class PropertyTestCaseTests
         var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Covers_the_impossible), attribute);
 
         // Assert
-        var failed = Assert.Single(messages.OfType<ITestFailed>());
-        Assert.Equal(typeof(PropertyFailedException).FullName, failed.ExceptionTypes[0]);
-        Assert.Contains("Insufficient coverage after 100 tests (seed 5).", failed.Messages[0]);
-        Assert.Contains("Only 0% never, but required 50%", failed.Messages[0]);
-        Assert.Empty(messages.OfType<ITestPassed>());
+        var passed = Assert.Single(messages.OfType<ITestPassed>());
+        Assert.Contains("Passed 100 tests (seed 5).", passed.Output);
+        Assert.Contains("Only 0% never, but required 50%", passed.Output);
+        Assert.Empty(messages.OfType<ITestFailed>());
     }
 
     [Fact]
