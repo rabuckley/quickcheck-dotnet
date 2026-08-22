@@ -5,92 +5,120 @@ public sealed class ShrinkingTests
     private static readonly CheckOptions Seeded = new() { Seed = 2024, RunCount = 200 };
 
     [Fact]
-    public void Shrinks_through_Select_and_Where_to_the_smallest_failing_value()
+    public void Shrinking_WithSelectAndWhere_ShouldFindTheSmallestFailingValue()
     {
+        // Arrange
         // Even multiples of three, i.e. multiples of six.
         var generator = Generate.Between(0, 100_000)
             .Select(static x => x * 2)
             .Where(static x => x % 3 == 0);
+        var property = Property.ForAll(generator, static x => x < 100);
 
-        var result = Property.ForAll(generator, static x => x < 100).Check(Seeded);
+        // Act
+        var result = property.Check(Seeded);
 
+        // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal(102, result.Minimal.Value);
         Assert.Equal(ShrinkLimit.None, result.ShrinkLimit);
     }
 
     [Fact]
-    public void Shrinks_through_SelectMany_query_syntax()
+    public void Shrinking_WithSelectManyQuerySyntax_ShouldFindTheSmallestFailingList()
     {
+        // Arrange
         var generator =
             from length in Generate.Between(0, 20)
             from items in Generate.Between(0, 1000).List(length, length)
             select items;
+        var property = Property.ForAll(generator, static items => items.All(static x => x < 50));
 
-        var result = Property.ForAll(generator, static items => items.All(static x => x < 50)).Check(Seeded);
+        // Act
+        var result = property.Check(Seeded);
 
+        // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal([50], result.Minimal.Value);
     }
 
     [Fact]
-    public void Shrinks_a_list_by_deleting_elements_and_shrinking_the_rest()
+    public void Shrinking_WithAList_ShouldDeleteElementsAndShrinkTheRest()
     {
-        var result = Property
-            .ForAll(Generate.Integer<int>().List(), static items => items.Sum(static x => (long)x) < 100)
-            .Check(Seeded);
+        // Arrange
+        var property = Property.ForAll(Generate.Integer<int>().List(), static items => items.Sum(static x => (long)x) < 100);
 
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal([100], result.Minimal.Value);
     }
 
     [Fact]
-    public void Shrinks_a_duplicate_to_the_smallest_pair()
+    public void Shrinking_WithADuplicate_ShouldFindTheSmallestPair()
     {
-        var result = Property
-            .ForAll(Generate.Integer<int>().List(), static items => items.Distinct().Count() == items.Count)
-            .Check(Seeded);
+        // Arrange
+        var property = Property.ForAll(Generate.Integer<int>().List(), static items => items.Distinct().Count() == items.Count);
 
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal([0, 0], result.Minimal.Value);
     }
 
     [Fact]
-    public void Shrinks_negative_integers_towards_zero()
+    public void Shrinking_WithNegativeIntegers_ShouldMoveTowardsZero()
     {
-        var result = Property.ForAll(Generate.Integer<int>(), static x => x > -10).Check(Seeded);
+        // Arrange
+        var property = Property.ForAll(Generate.Integer<int>(), static x => x > -10);
 
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal(-10, result.Minimal.Value);
     }
 
     [Fact]
-    public void Shrinks_a_string_to_the_shortest_failing_one()
+    public void Shrinking_WithAString_ShouldFindTheShortestFailingOne()
     {
-        var result = Property.ForAll(Generate.String(), static s => !s.Contains('z')).Check(Seeded);
+        // Arrange
+        var property = Property.ForAll(Generate.String(), static s => !s.Contains('z'));
 
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal("z", result.Minimal.Value);
     }
 
     [Fact]
-    public void Shrinks_a_pair_jointly()
+    public void Shrinking_WithAPair_ShouldShrinkBothJointly()
     {
-        var result = Property
-            .ForAll(Generate.Between(0, 1000), Generate.Between(0, 1000), static (a, b) => a + b < 100)
-            .Check(Seeded);
+        // Arrange
+        var property = Property.ForAll(Generate.Between(0, 1000), Generate.Between(0, 1000), static (a, b) => a + b < 100);
 
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal(100, result.Minimal.Value.Item1 + result.Minimal.Value.Item2);
     }
 
     [Fact]
-    public void Does_not_shrink_into_a_different_failure()
+    public void Shrinking_WithTwoDistinctFailures_ShouldNotSlideIntoTheOtherOne()
     {
+        // Arrange
         // Large values throw one exception, small ones another; the shrinker
         // must keep the failure it started with rather than sliding to the
         // "simpler" small-value bug.
-        var result = Property.ForAll(Generate.Between(0, 1_000_000), static x =>
+        var property = Property.ForAll(Generate.Between(0, 1_000_000), static x =>
         {
             if (x >= 500_000)
             {
@@ -101,8 +129,12 @@ public sealed class ShrinkingTests
             {
                 throw new ArgumentException("small");
             }
-        }).Check(new CheckOptions { Seed = 7, RunCount = 500 });
+        });
 
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 7, RunCount = 500 });
+
+        // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal(result.Original.Exception?.GetType(), result.Minimal.Exception?.GetType());
 
@@ -117,12 +149,15 @@ public sealed class ShrinkingTests
     }
 
     [Fact]
-    public void Shrinking_can_be_disabled()
+    public void Shrinking_WithZeroMaxShrinkAttempts_ShouldBeDisabled()
     {
-        var result = Property
-            .ForAll(Generate.Between(1000, 1_000_000), static x => x < 1000)
-            .Check(Seeded with { MaxShrinkAttempts = 0 });
+        // Arrange
+        var property = Property.ForAll(Generate.Between(1000, 1_000_000), static x => x < 1000);
 
+        // Act
+        var result = property.Check(Seeded with { MaxShrinkAttempts = 0 });
+
+        // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal(0, result.ShrinkAttempts);
         Assert.Equal(result.Original.Value, result.Minimal.Value);
@@ -130,26 +165,34 @@ public sealed class ShrinkingTests
     }
 
     [Fact]
-    public void A_zero_work_budget_disables_shrinking()
+    public void Shrinking_WithZeroMaxShrinkWork_ShouldBeDisabled()
     {
-        var result = Property
-            .ForAll(Generate.Between(1000, 1_000_000), static x => x < 1000)
-            .Check(Seeded with { MaxShrinkWork = 0 });
+        // Arrange
+        var property = Property.ForAll(Generate.Between(1000, 1_000_000), static x => x < 1000);
 
+        // Act
+        var result = property.Check(Seeded with { MaxShrinkWork = 0 });
+
+        // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal(0, result.ShrinkAttempts);
         Assert.Equal(result.Original.Value, result.Minimal.Value);
     }
 
     [Fact]
-    public void The_work_budget_stops_shrinking_a_large_example()
+    public void Shrinking_WithALargeExampleAndASmallWorkBudget_ShouldStopEarly()
     {
+        // Arrange
         // Each candidate replays about 2,000 choices, so the 20,000-choice budget
         // buys roughly ten of them — nowhere near the 10,000 attempts still allowed.
-        var result = Property
-            .ForAll(Generate.Integer<int>().List(minLength: 2_000, maxLength: 2_000), static items => items.Count < 5)
-            .Check(Seeded with { MaxShrinkAttempts = 10_000, MaxShrinkWork = 20_000 });
+        var property = Property.ForAll(
+            Generate.Integer<int>().List(minLength: 2_000, maxLength: 2_000),
+            static items => items.Count < 5);
 
+        // Act
+        var result = property.Check(Seeded with { MaxShrinkAttempts = 10_000, MaxShrinkWork = 20_000 });
+
+        // Assert
         Assert.True(result.IsFalsified);
         Assert.InRange(result.ShrinkAttempts, 1, 20);
         Assert.Equal(ShrinkLimit.Work, result.ShrinkLimit);

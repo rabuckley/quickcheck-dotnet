@@ -7,10 +7,15 @@ public sealed class GenerateTests
     private enum Colour { Red, Green, Blue }
 
     [Fact]
-    public void Between_stays_in_range_and_reaches_both_bounds()
+    public void Between_WithManySamples_ShouldStayInRangeAndReachBothBounds()
     {
-        var samples = Generate.Between(-5, 7).Sample(count: 2000, seed: 1);
+        // Arrange
+        var generator = Generate.Between(-5, 7);
 
+        // Act
+        var samples = generator.Sample(count: 2000, seed: 1);
+
+        // Assert
         Assert.All(samples, static x => Assert.InRange(x, -5, 7));
         Assert.Contains(-5, samples);
         Assert.Contains(7, samples);
@@ -18,8 +23,9 @@ public sealed class GenerateTests
     }
 
     [Fact]
-    public void Between_rejects_inverted_or_oversized_ranges()
+    public void Between_WithInvertedOrOversizedRange_ShouldThrowArgumentOutOfRangeException()
     {
+        // Act & Assert
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Between(10, 1));
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Between(Int128.MinValue, Int128.MaxValue));
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Integer<UInt128>());
@@ -27,12 +33,16 @@ public sealed class GenerateTests
     }
 
     [Fact]
-    public void Between_supports_narrow_ranges_of_types_wider_than_64_bits()
+    public void Between_WithNarrowRangeOfTypeWiderThan64Bits_ShouldStayInRangeAndReachBothBounds()
     {
+        // Arrange
         var far = BigInteger.One << 200;
+
+        // Act
         var huge = Generate.Between(UInt128.MaxValue - 5, UInt128.MaxValue).Sample(count: 500, seed: 17);
         var big = Generate.Between(-far, -far + 5).Sample(count: 500, seed: 18);
 
+        // Assert
         Assert.All(huge, static x => Assert.InRange(x, UInt128.MaxValue - 5, UInt128.MaxValue));
         Assert.Contains(UInt128.MaxValue, huge);
         Assert.Contains(UInt128.MaxValue - 5, huge);
@@ -42,11 +52,13 @@ public sealed class GenerateTests
     }
 
     [Fact]
-    public void Between_shrinks_towards_the_bound_nearest_zero()
+    public void Between_WithFalsifiedProperty_ShouldShrinkTowardsTheBoundNearestZero()
     {
+        // Arrange
         static T Minimal<T>(Generator<T> generator) =>
             Property.ForAll(generator, static _ => false).Check(new CheckOptions { Seed = 19 }).Minimal!.Value;
 
+        // Act & Assert
         Assert.Equal(0, Minimal(Generate.Integer<int>()));
         Assert.Equal(0UL, Minimal(Generate.Integer<ulong>()));
         Assert.Equal(3, Minimal(Generate.Between(3, 9)));
@@ -56,12 +68,14 @@ public sealed class GenerateTests
     }
 
     [Fact]
-    public void Integer_covers_the_full_range_including_extremes()
+    public void Integer_WithManySamples_ShouldCoverTheFullRangeIncludingExtremes()
     {
+        // Act
         var bytes = Generate.Integer<sbyte>().Sample(count: 3000, seed: 2);
         var ulongs = Generate.Integer<ulong>().Sample(count: 3000, seed: 3);
         var longs = Generate.Integer<long>().Sample(count: 3000, seed: 4);
 
+        // Assert
         Assert.Contains(sbyte.MinValue, bytes);
         Assert.Contains(sbyte.MaxValue, bytes);
         Assert.Contains(ulong.MaxValue, ulongs);
@@ -73,12 +87,14 @@ public sealed class GenerateTests
     }
 
     [Fact]
-    public void Collections_respect_length_bounds_and_produce_variety()
+    public void Collections_WithLengthBounds_ShouldRespectThemAndProduceVariety()
     {
+        // Act
         var lists = Generate.Boolean().List(minLength: 2, maxLength: 5).Sample(count: 500, seed: 5);
         var strings = Generate.String(maxLength: 8).Sample(count: 500, seed: 6);
         var arrays = Generate.Integer<int>().Array(maxLength: 3).Sample(count: 200, seed: 7);
 
+        // Assert
         Assert.All(lists, static l => Assert.InRange(l.Count, 2, 5));
         Assert.Contains(lists, static l => l.Count == 2);
         Assert.Contains(lists, static l => l.Count == 5);
@@ -89,13 +105,15 @@ public sealed class GenerateTests
     }
 
     [Fact]
-    public void Choice_generators_cover_every_alternative_and_respect_weights()
+    public void ChoiceGenerators_WithManySamples_ShouldCoverEveryAlternativeAndRespectWeights()
     {
+        // Act
         var elements = Generate.Elements("a", "b", "c").Sample(count: 300, seed: 8);
         var enums = Generate.Enum<Colour>().Sample(count: 300, seed: 9);
         var oneOf = Generate.OneOf(Generate.Constant(1), Generate.Constant(2), Generate.Constant(3)).Sample(count: 300, seed: 10);
         var weighted = Generate.Frequency((9, Generate.Constant("common")), (1, Generate.Constant("rare"))).Sample(count: 1000, seed: 11);
 
+        // Assert
         Assert.Equal(["a", "b", "c"], elements.Distinct().Order());
         Assert.Equal([Colour.Red, Colour.Green, Colour.Blue], enums.Distinct().Order());
         Assert.Equal([1, 2, 3], oneOf.Distinct().Order());
@@ -103,19 +121,26 @@ public sealed class GenerateTests
     }
 
     [Fact]
-    public void OneOf_draws_uniformly_across_its_alternatives()
+    public void OneOf_WithManySamples_ShouldDrawUniformlyAcrossItsAlternatives()
     {
-        var uniform = Generate.OneOf(Generate.Constant(1), Generate.Constant(2), Generate.Constant(3)).Sample(count: 3000, seed: 20);
+        // Arrange
+        var generator = Generate.OneOf(Generate.Constant(1), Generate.Constant(2), Generate.Constant(3));
 
+        // Act
+        var uniform = generator.Sample(count: 3000, seed: 20);
+
+        // Assert
         Assert.All<int>([1, 2, 3], value => Assert.InRange(uniform.Count(x => x == value), 800, 1200));
     }
 
     [Fact]
-    public void Nullable_combinators_produce_both_null_and_values()
+    public void NullableCombinators_WithManySamples_ShouldProduceBothNullAndValues()
     {
+        // Act
         var strings = Generate.String().OrNull(nullProbability: 0.3).Sample(count: 200, seed: 12);
         var ints = Generate.Integer<int>().Nullable(nullProbability: 0.3).Sample(count: 200, seed: 13);
 
+        // Assert
         Assert.Contains(strings, static s => s is null);
         Assert.Contains(strings, static s => s is not null);
         Assert.Contains(ints, static i => i is null);
@@ -123,25 +148,35 @@ public sealed class GenerateTests
     }
 
     [Fact]
-    public void Defer_allows_recursive_generators()
+    public void Deferred_WithRecursiveGenerator_ShouldTerminateAndRecurse()
     {
+        // Arrange
         Generator<int>? depthGen = null;
         depthGen = Generate.Frequency(
             (3, Generate.Constant(0)),
             (1, Generate.Deferred(() => depthGen!).Select(static d => d + 1)));
 
+        // Act
         var depths = depthGen.Sample(count: 500, seed: 14);
 
+        // Assert
         Assert.Contains(0, depths);
         Assert.Contains(depths, static d => d >= 2);
     }
 
     [Fact]
-    public void Sample_is_deterministic_per_seed()
+    public void Sample_WithTheSameSeed_ShouldBeDeterministic()
     {
+        // Arrange
         var generator = Generate.Tuple(Generate.Integer<int>(), Generate.String(), Generate.Boolean());
 
-        Assert.Equal(generator.Sample(count: 50, seed: 15), generator.Sample(count: 50, seed: 15));
-        Assert.NotEqual(generator.Sample(count: 50, seed: 15), generator.Sample(count: 50, seed: 16));
+        // Act
+        var first = generator.Sample(count: 50, seed: 15);
+        var second = generator.Sample(count: 50, seed: 15);
+        var other = generator.Sample(count: 50, seed: 16);
+
+        // Assert
+        Assert.Equal(first, second);
+        Assert.NotEqual(first, other);
     }
 }

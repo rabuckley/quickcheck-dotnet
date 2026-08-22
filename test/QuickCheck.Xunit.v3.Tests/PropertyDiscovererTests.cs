@@ -29,12 +29,15 @@ public sealed class PropertyDiscovererTests
     }
 
     [Fact]
-    public async Task Valid_methods_become_a_single_property_test_case_carrying_their_settings()
+    public async Task Discover_WithValidMethod_ShouldCreateOnePropertyTestCaseCarryingItsSettings()
     {
+        // Arrange
         var attribute = new PropertyAttribute { RunCount = 7, Seed = 9, MaxShrinkAttempts = 3, MaxShrinkWork = 4, Generators = typeof(Samples) };
 
+        // Act
         var testCase = Assert.IsType<PropertyTestCase>(await TestHost.Discover(typeof(Samples), nameof(Samples.Fine), attribute));
 
+        // Assert
         Assert.Equal(7, testCase.Options.RunCount);
         Assert.Equal(9UL, testCase.Options.Seed);
         Assert.Equal(3, testCase.Options.MaxShrinkAttempts);
@@ -45,10 +48,12 @@ public sealed class PropertyDiscovererTests
     }
 
     [Fact]
-    public async Task Unset_attribute_values_leave_the_library_defaults()
+    public async Task Discover_WithUnsetAttributeValues_ShouldLeaveTheLibraryDefaults()
     {
+        // Act
         var testCase = Assert.IsType<PropertyTestCase>(await TestHost.Discover(typeof(Samples), nameof(Samples.Fine)));
 
+        // Assert
         Assert.Equal(CheckOptions.Default, testCase.Options);
         Assert.Null(testCase.Generators);
     }
@@ -61,10 +66,12 @@ public sealed class PropertyDiscovererTests
     [InlineData(nameof(Samples.Unsupported_type), "Parameter 'd' (Double): QuickCheck has no built-in generator for Double")]
     [InlineData(nameof(Samples.Missing_named_generator), "Parameter 'x' (Int32): no static generator member named 'Nope' was found on Samples")]
     [InlineData(nameof(Samples.Wrongly_typed_generator), "'Samples.Text' is a Generator<String>, not a Generator<Int32>")]
-    public async Task Invalid_methods_become_an_error_test_case_naming_the_problem(string method, string expectedMessage)
+    public async Task Discover_WithInvalidMethod_ShouldCreateAnErrorTestCaseNamingTheProblem(string method, string expectedMessage)
     {
+        // Act
         var testCase = Assert.IsType<PropertyTestCase>(await TestHost.Discover(typeof(Samples), method));
 
+        // Assert
         Assert.StartsWith($"[Property] method Samples.{method}: ", testCase.Error);
         Assert.Contains(expectedMessage, testCase.Error);
     }
@@ -72,49 +79,65 @@ public sealed class PropertyDiscovererTests
     [Theory]
     [InlineData("not-a-token", "not a valid replay token")]
     [InlineData("1:2:3", "not a valid replay token")]
-    public async Task Invalid_replay_tokens_are_reported_at_discovery(string replay, string expectedMessage)
+    public async Task Discover_WithInvalidReplayToken_ShouldReportItAtDiscovery(string replay, string expectedMessage)
     {
-        var testCase = Assert.IsType<PropertyTestCase>(
-            await TestHost.Discover(typeof(Samples), nameof(Samples.Fine), new PropertyAttribute { Replay = replay }));
+        // Arrange
+        var attribute = new PropertyAttribute { Replay = replay };
 
+        // Act
+        var testCase = Assert.IsType<PropertyTestCase>(await TestHost.Discover(typeof(Samples), nameof(Samples.Fine), attribute));
+
+        // Assert
         Assert.Contains(expectedMessage, testCase.Error);
     }
 
     [Fact]
-    public async Task Out_of_range_settings_are_reported_at_discovery()
+    public async Task Discover_WithOutOfRangeSettings_ShouldReportThemAtDiscovery()
     {
-        var testCase = Assert.IsType<PropertyTestCase>(
-            await TestHost.Discover(typeof(Samples), nameof(Samples.Fine), new PropertyAttribute { RunCount = -1 }));
+        // Arrange
+        var attribute = new PropertyAttribute { RunCount = -1 };
 
+        // Act
+        var testCase = Assert.IsType<PropertyTestCase>(await TestHost.Discover(typeof(Samples), nameof(Samples.Fine), attribute));
+
+        // Assert
         Assert.StartsWith($"[Property] method Samples.{nameof(Samples.Fine)}: ", testCase.Error);
         Assert.Contains("RunCount", testCase.Error);
     }
 
     [Fact]
-    public async Task Error_test_cases_fail_when_run()
+    public async Task Run_WithErrorTestCase_ShouldFail()
     {
+        // Act
         var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Generic));
 
+        // Assert
         var failed = Assert.Single(messages.OfType<global::Xunit.Sdk.ITestFailed>());
         Assert.Contains("generic methods are not supported", failed.Messages[0]);
     }
 
     [Fact]
-    public async Task Error_test_cases_keep_their_traits_so_filters_can_still_exclude_them()
+    public async Task Discover_WithErrorTestCase_ShouldKeepItsTraitsSoFiltersCanStillExcludeIt()
     {
+        // Act
         var testCase = Assert.IsType<PropertyTestCase>(
             await TestHost.Discover(typeof(Samples), nameof(Samples.Categorised_but_unsupported)));
 
+        // Assert
         Assert.NotNull(testCase.Error);
         Assert.Equal(["Integration"], testCase.Traits["Category"]);
     }
 
     [Fact]
-    public async Task A_skipped_property_is_skipped_even_when_it_could_not_be_run()
+    public async Task Run_WithSkippedErrorTestCase_ShouldSkipItRatherThanFail()
     {
-        var messages = await TestHost.Run(
-            typeof(Samples), nameof(Samples.Generic), new PropertyAttribute { Skip = "not yet" });
+        // Arrange
+        var attribute = new PropertyAttribute { Skip = "not yet" };
 
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Generic), attribute);
+
+        // Assert
         var skipped = Assert.Single(messages.OfType<global::Xunit.Sdk.ITestSkipped>());
         Assert.Equal("not yet", skipped.Reason);
         Assert.Empty(messages.OfType<global::Xunit.Sdk.ITestFailed>());
@@ -129,14 +152,17 @@ public sealed class PropertyTestCaseSerializationTests
     }
 
     [Fact]
-    public async Task Test_cases_round_trip_through_xunit_serialization_with_their_settings()
+    public async Task Serialization_WithEverySettingSet_ShouldRoundTripTheTestCase()
     {
+        // Arrange
         var attribute = new PropertyAttribute { RunCount = 7, Seed = 9, Replay = "9:3", MaxShrinkAttempts = 3, MaxShrinkWork = 4, Generators = typeof(Samples) };
         var original = Assert.IsType<PropertyTestCase>(await Harness.TestHost.Discover(typeof(Samples), nameof(Samples.Fine), attribute));
 
+        // Act
         var serialized = global::Xunit.Sdk.SerializationHelper.Instance.Serialize(original);
         var deserialized = Assert.IsType<PropertyTestCase>(global::Xunit.Sdk.SerializationHelper.Instance.Deserialize(serialized));
 
+        // Assert
         Assert.Equal(original.UniqueID, deserialized.UniqueID);
         Assert.Equal(original.TestCaseDisplayName, deserialized.TestCaseDisplayName);
         Assert.Equal(original.Options, deserialized.Options);
@@ -169,26 +195,32 @@ public sealed class PropertyTestCaseSerializationTests
     }
 
     [Fact]
-    public async Task An_error_round_trips_so_the_execution_process_reports_it()
+    public async Task Serialization_WithErrorTestCase_ShouldRoundTripTheErrorSoTheExecutionProcessReportsIt()
     {
+        // Arrange
         var original = Assert.IsType<PropertyTestCase>(
             await Harness.TestHost.Discover(typeof(Samples), nameof(Samples.Fine), new PropertyAttribute { RunCount = -1 }));
 
+        // Act
         var serialized = global::Xunit.Sdk.SerializationHelper.Instance.Serialize(original);
         var deserialized = Assert.IsType<PropertyTestCase>(global::Xunit.Sdk.SerializationHelper.Instance.Deserialize(serialized));
 
+        // Assert
         Assert.Equal(original.Error, deserialized.Error);
         Assert.Contains("RunCount", deserialized.Error);
     }
 
     [Fact]
-    public async Task Default_settings_round_trip()
+    public async Task Serialization_WithDefaultSettings_ShouldRoundTripTheDefaults()
     {
+        // Arrange
         var original = Assert.IsType<PropertyTestCase>(await Harness.TestHost.Discover(typeof(Samples), nameof(Samples.Fine)));
 
+        // Act
         var serialized = global::Xunit.Sdk.SerializationHelper.Instance.Serialize(original);
         var deserialized = Assert.IsType<PropertyTestCase>(global::Xunit.Sdk.SerializationHelper.Instance.Deserialize(serialized));
 
+        // Assert
         Assert.Equal(CheckOptions.Default, deserialized.Options);
         Assert.Null(deserialized.Generators);
     }

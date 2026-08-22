@@ -43,13 +43,17 @@ public sealed class PropertyTestCaseTests
     }
 
     [Fact]
-    public async Task Failing_property_fails_with_a_report_naming_the_minimal_counterexample_and_replay()
+    public async Task PropertyTestCase_WithFailingProperty_ShouldFailNamingTheMinimalCounterexampleAndReplay()
     {
-        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Sum_is_small), new PropertyAttribute { Seed = 11 });
+        // Arrange
+        var attribute = new PropertyAttribute { Seed = 11 };
 
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Sum_is_small), attribute);
+
+        // Assert
         var failed = Assert.Single(messages.OfType<ITestFailed>());
         var report = failed.Messages[0];
-
         Assert.Equal(typeof(PropertyFailedException).FullName, failed.ExceptionTypes[0]);
         Assert.Contains(failed.ExceptionTypes, static type => type == typeof(TrueException).FullName);
         Assert.Contains("Falsified after", report);
@@ -59,32 +63,45 @@ public sealed class PropertyTestCaseTests
     }
 
     [Fact]
-    public async Task False_return_and_async_bodies_are_falsified_and_shrunk()
+    public async Task PropertyTestCase_WithFalseReturnOrAsyncBody_ShouldFalsifyAndShrink()
     {
-        var predicate = await TestHost.Run(typeof(Samples), nameof(Samples.Strings_are_short), new PropertyAttribute { Seed = 3 });
-        var asynchronous = await TestHost.Run(typeof(Samples), nameof(Samples.Async_bodies_fail_after_awaiting), new PropertyAttribute { Seed = 3 });
+        // Arrange
+        var attribute = new PropertyAttribute { Seed = 3 };
 
+        // Act
+        var predicate = await TestHost.Run(typeof(Samples), nameof(Samples.Strings_are_short), attribute);
+        var asynchronous = await TestHost.Run(typeof(Samples), nameof(Samples.Async_bodies_fail_after_awaiting), attribute);
+
+        // Assert
         Assert.Contains("Minimal counterexample: s = \"aaa\"", Assert.Single(predicate.OfType<ITestFailed>()).Messages[0]);
         Assert.Contains("Minimal counterexample: items = [1001]", Assert.Single(asynchronous.OfType<ITestFailed>()).Messages[0]);
     }
 
     [Fact]
-    public async Task A_Task_returning_body_has_no_verdict_even_when_it_hands_back_a_Task_of_bool()
+    public async Task PropertyTestCase_WithTaskReturningBodyThatHandsBackATaskOfBool_ShouldHaveNoVerdict()
     {
-        var messages = await TestHost.Run(
-            typeof(Samples), nameof(Samples.Awaits_a_bool_returning_call), new PropertyAttribute { Seed = 9 });
+        // Arrange
+        var attribute = new PropertyAttribute { Seed = 9 };
 
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Awaits_a_bool_returning_call), attribute);
+
+        // Assert
         Assert.Empty(messages.OfType<ITestFailed>());
         Assert.Single(messages.OfType<ITestPassed>());
     }
 
     [Fact]
-    public async Task Passing_property_passes_and_reports_the_seed_in_the_test_output()
+    public async Task PropertyTestCase_WithPassingProperty_ShouldPassAndReportTheSeedInTheTestOutput()
     {
+        // Arrange
         Samples.Invocations = 0;
+        var attribute = new PropertyAttribute { RunCount = 37, Seed = 5 };
 
-        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Passes), new PropertyAttribute { RunCount = 37, Seed = 5 });
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Passes), attribute);
 
+        // Assert
         var passed = Assert.Single(messages.OfType<ITestPassed>());
         Assert.Contains("Passed 37 tests (seed 5).", passed.Output);
         Assert.Equal(37, Samples.Invocations);
@@ -123,34 +140,47 @@ public sealed class PropertyTestCaseTests
     }
 
     [Fact]
-    public async Task Replay_token_checks_only_the_named_example()
+    public async Task PropertyTestCase_WithReplayToken_ShouldCheckOnlyTheNamedExample()
     {
+        // Arrange
         var first = await TestHost.Run(typeof(Samples), nameof(Samples.Sum_is_small), new PropertyAttribute { Seed = 11 });
         var report = Assert.Single(first.OfType<ITestFailed>()).Messages[0];
         var token = report[(report.IndexOf("Replay = \"", StringComparison.Ordinal) + "Replay = \"".Length)..];
         token = token[..token.IndexOf('"')];
 
+        // Act
         var replayed = await TestHost.Run(typeof(Samples), nameof(Samples.Sum_is_small), new PropertyAttribute { Replay = token });
 
+        // Assert
         var failed = Assert.Single(replayed.OfType<ITestFailed>());
         Assert.Contains("Falsified after 1 tests", failed.Messages[0]);
         Assert.Contains("Minimal counterexample: a = 0, b = 100", failed.Messages[0]);
     }
 
     [Fact]
-    public async Task Exhausted_properties_fail()
+    public async Task PropertyTestCase_WithExhaustedProperty_ShouldFail()
     {
-        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Assumes_the_impossible), new PropertyAttribute { RunCount = 5 });
+        // Arrange
+        var attribute = new PropertyAttribute { RunCount = 5 };
 
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Assumes_the_impossible), attribute);
+
+        // Assert
         var failed = Assert.Single(messages.OfType<ITestFailed>());
         Assert.Contains("Gave up after 0 tests", failed.Messages[0]);
     }
 
     [Fact]
-    public async Task Exceptions_from_the_body_are_reported_with_the_counterexample()
+    public async Task PropertyTestCase_WithExceptionFromTheBody_ShouldReportItWithTheCounterexample()
     {
-        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Divides), new PropertyAttribute { Seed = 1, RunCount = 500 });
+        // Arrange
+        var attribute = new PropertyAttribute { Seed = 1, RunCount = 500 };
 
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Divides), attribute);
+
+        // Assert
         var failed = Assert.Single(messages.OfType<ITestFailed>());
         Assert.Contains("Minimal counterexample: a = 0, b = 0", failed.Messages[0]);
         Assert.Contains("threw System.DivideByZeroException", failed.Messages[0]);
@@ -158,10 +188,15 @@ public sealed class PropertyTestCaseTests
     }
 
     [Fact]
-    public async Task Cancelling_the_test_stops_the_check()
+    public async Task PropertyTestCase_WithCancelledTest_ShouldStopTheCheck()
     {
-        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Static_and_cancels), new PropertyAttribute { RunCount = 1000 });
+        // Arrange
+        var attribute = new PropertyAttribute { RunCount = 1000 };
 
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Static_and_cancels), attribute);
+
+        // Assert
         var failed = Assert.Single(messages.OfType<ITestFailed>());
         Assert.Contains(failed.ExceptionTypes, static type => type?.Contains("Cancel", StringComparison.Ordinal) == true);
     }

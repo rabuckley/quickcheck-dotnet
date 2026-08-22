@@ -33,16 +33,19 @@ public sealed class Xoshiro256StarStarTests
 
     [Theory]
     [MemberData(nameof(ReferenceVectors))]
-    public void NextUInt64_MatchesReferenceImplementation(ulong seed, int run, ulong[] expected)
+    public void NextUInt64_WithReferenceSeedAndRun_ShouldMatchTheReferenceImplementation(ulong seed, int run, ulong[] expected)
     {
+        // Arrange
         var random = Xoshiro256StarStar.ForRun(seed, run);
-
         var actual = new ulong[expected.Length];
+
+        // Act
         for (var i = 0; i < actual.Length; i++)
         {
             actual[i] = random.NextUInt64();
         }
 
+        // Assert
         Assert.Equal(expected, actual);
     }
 
@@ -58,14 +61,16 @@ public sealed class Xoshiro256StarStarTests
     [InlineData(1UL << 63)]
     [InlineData(ulong.MaxValue - 1)]
     [InlineData(ulong.MaxValue)]
-    public void NextUInt64Inclusive_NeverExceedsMax(ulong max)
+    public void NextUInt64Inclusive_WithAnyMax_ShouldNeverExceedIt(ulong max)
     {
+        // Arrange
         var random = Xoshiro256StarStar.ForRun(seed: 12345, run: 0);
 
-        for (var i = 0; i < 1_000; i++)
-        {
-            Assert.InRange(random.NextUInt64Inclusive(max), 0UL, max);
-        }
+        // Act
+        var values = Enumerable.Range(0, 1_000).Select(_ => random.NextUInt64Inclusive(max)).ToList();
+
+        // Assert
+        Assert.All(values, value => Assert.InRange(value, 0UL, max));
     }
 
     [Theory]
@@ -76,17 +81,20 @@ public sealed class Xoshiro256StarStarTests
     [InlineData(4UL)]
     [InlineData(7UL)]
     [InlineData(8UL)]
-    public void NextUInt64Inclusive_ReachesEveryValueInRange(ulong max)
+    public void NextUInt64Inclusive_WithSmallMax_ShouldReachEveryValueInRange(ulong max)
     {
+        // Arrange
         var random = Xoshiro256StarStar.ForRun(seed: 12345, run: 1);
+        var expected = Enumerable.Range(0, (int)max + 1).Select(v => (ulong)v);
 
+        // Act
         var seen = new HashSet<ulong>();
         for (var i = 0; i < 1_000; i++)
         {
             seen.Add(random.NextUInt64Inclusive(max));
         }
 
-        var expected = Enumerable.Range(0, (int)max + 1).Select(v => (ulong)v);
+        // Assert
         Assert.Equal(expected, seen.Order());
     }
 }

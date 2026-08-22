@@ -125,16 +125,20 @@ public sealed class GeneratorResolverTests
         Assert.Throws<PropertyDefinitionException>(() => Arguments(method, generators));
 
     [Fact]
-    public void Nullable_annotations_add_nulls_at_every_level()
+    public void GeneratorResolver_WithNullableAnnotations_ShouldAddNullsAtEveryLevel()
     {
-        var samples = Arguments(nameof(Samples.Nullables)).Sample(count: 300, seed: 1);
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Nullables));
 
+        // Act
+        var samples = arguments.Sample(count: 300, seed: 1);
+        var customers = samples.Select(static a => (Customer)a.Values[2]!).ToList();
+
+        // Assert
         Assert.Contains(samples, static a => a.Values[0] is null);
         Assert.Contains(samples, static a => a.Values[0] is int);
         Assert.Contains(samples, static a => a.Values[1] is null);
         Assert.Contains(samples, static a => a.Values[1] is string);
-
-        var customers = samples.Select(static a => (Customer)a.Values[2]!).ToList();
         Assert.All(customers, static c => Assert.NotNull(c.Name));
         Assert.All(customers, static c => Assert.NotNull(c.Home));
         Assert.Contains(customers, static c => c.Work is null);
@@ -144,10 +148,15 @@ public sealed class GeneratorResolverTests
     }
 
     [Fact]
-    public void Recursive_types_unroll_to_the_depth_limit_and_end_in_empty_collections()
+    public void GeneratorResolver_WithRecursiveType_ShouldUnrollToTheDepthLimitAndEndInEmptyCollections()
     {
-        var trees = Arguments(nameof(Samples.Recursive)).Sample(count: 50, seed: 2).Select(static a => (Tree)a.Values[0]!);
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Recursive));
 
+        // Act
+        var trees = arguments.Sample(count: 50, seed: 2).Select(static a => (Tree)a.Values[0]!);
+
+        // Assert
         Assert.All(trees, static tree => Assert.InRange(Depth(tree), 1, GeneratorResolver.MaxRecursionDepth));
         Assert.Contains(trees, static tree => Depth(tree) > 1);
 
@@ -155,29 +164,41 @@ public sealed class GeneratorResolverTests
     }
 
     [Fact]
-    public void Types_that_cannot_be_derived_are_explained()
+    public void GeneratorResolver_WithUnderivableTypes_ShouldExplainWhy()
     {
+        // Act & Assert
         Assert.Contains("Chain is recursive without a nullable or collection member", Error(nameof(Samples.Endless)).Message);
         Assert.Contains("no generator can be derived for Shape", Error(nameof(Samples.Abstract)).Message);
         Assert.Contains("TwoConstructors has 2 public constructors", Error(nameof(Samples.Ambiguous)).Message);
     }
 
     [Fact]
-    public void Nested_members_use_IArbitrary_and_the_registry()
+    public void GeneratorResolver_WithNestedMembers_ShouldUseIArbitraryAndTheRegistry()
     {
-        var prices = Arguments(nameof(Samples.Nested_arbitrary)).Sample(count: 50, seed: 3).Select(static a => (Price)a.Values[0]!).ToList();
-        Assert.All(prices, static p => Assert.InRange(p.Amount.Value, 0, 99));
+        // Arrange
+        var nested = Arguments(nameof(Samples.Nested_arbitrary));
+        var withRegistry = Arguments(nameof(Samples.Registered), typeof(Registry));
 
-        var registered = Arguments(nameof(Samples.Registered), typeof(Registry)).Sample(count: 50, seed: 3).ToList();
+        // Act
+        var prices = nested.Sample(count: 50, seed: 3).Select(static a => (Price)a.Values[0]!).ToList();
+        var registered = withRegistry.Sample(count: 50, seed: 3).ToList();
+
+        // Assert
+        Assert.All(prices, static p => Assert.InRange(p.Amount.Value, 0, 99));
         Assert.All(registered, static a => Assert.Contains(((Price)a.Values[0]!).Currency, new[] { "GBP", "EUR" }));
         Assert.All(registered, static a => Assert.InRange((int)a.Values[1]!, 0, 5));
     }
 
     [Fact]
-    public void Tuples_and_pairs_are_built_from_their_constructors()
+    public void GeneratorResolver_WithTuplesAndPairs_ShouldBuildThemFromTheirConstructors()
     {
-        var samples = Arguments(nameof(Samples.Tuples)).Sample(count: 20, seed: 4);
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Tuples));
 
+        // Act
+        var samples = arguments.Sample(count: 20, seed: 4);
+
+        // Assert
         Assert.All(samples, static a =>
         {
             Assert.IsType<(int, string?)>(a.Values[0]);
@@ -187,63 +208,92 @@ public sealed class GeneratorResolverTests
     }
 
     [Fact]
-    public void Ambiguous_lookups_are_errors()
+    public void GeneratorResolver_WithAmbiguousRegistryMembers_ShouldReportAnError()
     {
+        // Act
         var registryByType = Error(nameof(Samples.Registered), typeof(AmbiguousRegistry));
+
+        // Assert
         Assert.Contains("AmbiguousRegistry has more than one Generator<Int32> member (", registryByType.Message);
         Assert.Contains("name one with [Generator]", registryByType.Message);
     }
 
     [Fact]
-    public void A_registrys_private_members_are_not_candidates_for_type_matching()
+    public void GeneratorResolver_WithPrivateRegistryMembers_ShouldNotMatchThemByType()
     {
-        var samples = Arguments(nameof(Samples.Counted), typeof(PrivateHelperRegistry)).Sample(count: 20, seed: 11);
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Counted), typeof(PrivateHelperRegistry));
 
+        // Act
+        var samples = arguments.Sample(count: 20, seed: 11);
+
+        // Assert
         Assert.All(samples, static a => Assert.InRange((int)a.Values[0]!, 0, 5));
     }
 
     [Fact]
-    public void A_registry_with_only_a_private_generator_falls_through_to_the_built_in()
+    public void GeneratorResolver_WithOnlyAPrivateRegistryGenerator_ShouldFallThroughToTheBuiltIn()
     {
-        var samples = Arguments(nameof(Samples.Counted), typeof(PrivateOnlyRegistry)).Sample(count: 20, seed: 12);
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Counted), typeof(PrivateOnlyRegistry));
 
+        // Act
+        var samples = arguments.Sample(count: 20, seed: 12);
+
+        // Assert
         Assert.Contains(samples, static a => (int)a.Values[0]! != 42);
     }
 
     [Fact]
-    public void A_private_member_can_still_be_named()
+    public void GeneratorResolver_WithNamedPrivateMember_ShouldStillUseIt()
     {
-        var samples = Arguments(nameof(Samples.Named_private), typeof(PrivateHelperRegistry)).Sample(count: 20, seed: 13);
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Named_private), typeof(PrivateHelperRegistry));
 
+        // Act
+        var samples = arguments.Sample(count: 20, seed: 13);
+
+        // Assert
         Assert.All(samples, static a => Assert.InRange((int)a.Values[0]!, 90, 99));
     }
 
     [Fact]
-    public void A_registrys_auto_property_is_one_member_rather_than_an_ambiguity()
+    public void GeneratorResolver_WithRegistryAutoProperty_ShouldTreatItAsOneMemberRatherThanAnAmbiguity()
     {
-        var samples = Arguments(nameof(Samples.Counted), typeof(AutoPropertyRegistry)).Sample(count: 20, seed: 5);
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Counted), typeof(AutoPropertyRegistry));
 
+        // Act
+        var samples = arguments.Sample(count: 20, seed: 5);
+
+        // Assert
         Assert.All(samples, static a => Assert.InRange((int)a.Values[0]!, 0, 5));
     }
 
     [Fact]
-    public void Named_generators_apply_to_a_records_positional_parameters()
+    public void GeneratorResolver_WithNamedGeneratorsOnRecordParameters_ShouldApplyThem()
     {
-        var samples = Arguments(nameof(Samples.Named_in_a_record), typeof(NamedRegistry))
-            .Sample(count: 20, seed: 6)
-            .Select(static a => (Wrapped)a.Values[0]!);
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Named_in_a_record), typeof(NamedRegistry));
 
+        // Act
+        var samples = arguments.Sample(count: 20, seed: 6).Select(static a => (Wrapped)a.Values[0]!);
+
+        // Assert
         Assert.All(samples, static wrapped => Assert.InRange(wrapped.Value, 1000, 1099));
         Assert.All(samples, static wrapped => Assert.Equal("REGISTRY", wrapped.Text));
     }
 
     [Fact]
-    public void A_constructor_that_rejects_generated_arguments_names_the_type_and_the_arguments()
+    public void GeneratorResolver_WithConstructorThatRejectsGeneratedArguments_ShouldNameTheTypeAndTheArguments()
     {
+        // Arrange
         var arguments = Arguments(nameof(Samples.Validated));
 
+        // Act
         var exception = Assert.Throws<PropertyDefinitionException>(() => arguments.Sample(count: 200, seed: 7));
 
+        // Assert
         Assert.Contains("Deriving a generator for Label", exception.Message);
         Assert.Contains("Value = \"\"", exception.Message);
         Assert.Contains("public static Generator<Label> member on the Generators type", exception.Message);
@@ -251,33 +301,40 @@ public sealed class GeneratorResolverTests
     }
 
     [Fact]
-    public void An_interface_declaring_IArbitrary_generates_its_own_implementations()
+    public void GeneratorResolver_WithInterfaceDeclaringIArbitrary_ShouldGenerateItsImplementations()
     {
-        var samples = Arguments(nameof(Samples.Stocked)).Sample(count: 20, seed: 8);
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Stocked));
 
+        // Act
+        var samples = arguments.Sample(count: 20, seed: 8);
+
+        // Assert
         Assert.All(samples, static a => Assert.InRange(((IStock)a.Values[0]!).Count, 1, 9));
     }
 
     [Fact]
-    public void A_generator_member_that_throws_is_reported_with_its_name_and_the_cause()
+    public void GeneratorResolver_WithThrowingGeneratorMember_ShouldReportItsNameAndTheCause()
     {
+        // Act
         var error = Error(nameof(Samples.Counted), typeof(ThrowingRegistry));
-
-        Assert.Contains("'ThrowingRegistry.Small' threw InvalidOperationException: no generators today", error.Message);
-        Assert.IsType<InvalidOperationException>(error.GetBaseException());
-
         var uninitializable = Error(nameof(Samples.Counted), typeof(UninitializableRegistry));
 
+        // Assert
+        Assert.Contains("'ThrowingRegistry.Small' threw InvalidOperationException: no generators today", error.Message);
+        Assert.IsType<InvalidOperationException>(error.GetBaseException());
         Assert.Contains("'UninitializableRegistry.Small' threw InvalidOperationException: the registry blew up", uninitializable.Message);
     }
 
     [Fact]
-    public void Named_generators_are_found_on_the_test_class_and_the_generators_type_but_not_both()
+    public void GeneratorResolver_WithNamedGeneratorOnTestClassAndGeneratorsType_ShouldUseTheClassAloneOrReportAmbiguity()
     {
+        // Act
         var fromClass = Arguments(nameof(Samples.Named_ambiguity)).Sample(count: 1)[0].Values[0];
-        Assert.Equal("test class", fromClass);
-
         var ambiguous = Error(nameof(Samples.Named_ambiguity), typeof(NamedRegistry));
+
+        // Assert
+        Assert.Equal("test class", fromClass);
         Assert.Contains("the generator name 'Text' is ambiguous", ambiguous.Message);
     }
 }

@@ -29,7 +29,7 @@ public sealed class PropertyAttributeTests(ITestOutputHelper output)
     private static Generator<int> Even { get; } = Generate.Integer<int>().Select(static x => x * 2);
 
     [Property]
-    public void Integers_strings_and_lists_are_generated_by_default(int x, string s, List<byte> bytes)
+    public void Property_WithIntStringAndListParameters_ShouldGenerateThemByDefault(int x, string s, List<byte> bytes)
     {
         _ = x;
         Assert.NotNull(s);
@@ -37,7 +37,7 @@ public sealed class PropertyAttributeTests(ITestOutputHelper output)
     }
 
     [Property]
-    public void Every_supported_shape_is_generated(
+    public void Property_WithEverySupportedParameterShape_ShouldGenerateIt(
         bool flag, char c, long l, ushort us, Colour colour, int? maybe, string? maybeText,
         int[] array, IReadOnlyList<string> texts, (int, string) tuple, Person person, Money money,
         KeyValuePair<string, int> pair)
@@ -48,43 +48,46 @@ public sealed class PropertyAttributeTests(ITestOutputHelper output)
     }
 
     [Property]
-    public void Recursive_records_terminate(Node node)
+    public void Property_WithRecursiveRecord_ShouldTerminate(Node node)
     {
+        // Arrange
         var depth = 0;
 
+        // Act
         for (var current = node; current is not null; current = current.Next)
         {
             depth++;
         }
 
+        // Assert
         Assert.InRange(depth, 1, GeneratorResolver.MaxRecursionDepth);
     }
 
     [Property]
-    public bool Bool_returns_are_the_property(int x) => x + 0 == x;
+    public bool Property_WithBoolReturn_ShouldUseItAsTheVerdict(int x) => x + 0 == x;
 
     [Property]
-    public async Task Async_bodies_are_awaited(int x)
+    public async Task Property_WithAsyncBody_ShouldAwaitIt(int x)
     {
         await Task.Yield();
         Assert.Equal(x, x);
     }
 
     [Property]
-    public async ValueTask<bool> ValueTask_bool_bodies_are_the_property(string s)
+    public async ValueTask<bool> Property_WithValueTaskOfBoolBody_ShouldUseItAsTheVerdict(string s)
     {
         await Task.Yield();
         return s.Length >= 0;
     }
 
     [Property]
-    public void Named_generators_come_from_the_test_class([Generator(nameof(Even))] int x)
+    public void Property_WithNamedGeneratorOnTheTestClass_ShouldUseIt([Generator(nameof(Even))] int x)
     {
         Assert.Equal(0, x % 2);
     }
 
     [Property(Generators = typeof(Generators))]
-    public void The_generators_type_supplies_generators_by_type_and_by_name(
+    public void Property_WithGeneratorsType_ShouldSupplyGeneratorsByTypeAndByName(
         int small, [Generator(nameof(Generators.Word))] string word, List<int> smalls)
     {
         Assert.InRange(small, -10, 10);
@@ -93,30 +96,30 @@ public sealed class PropertyAttributeTests(ITestOutputHelper output)
     }
 
     [Property]
-    public void Explicit_sources_can_name_any_type([Generator(typeof(Generators), nameof(Generators.Small))] int x)
+    public void Property_WithExplicitGeneratorSource_ShouldAcceptAnyType([Generator(typeof(Generators), nameof(Generators.Small))] int x)
     {
         Assert.InRange(x, -10, 10);
     }
 
     [Property(RunCount = 20, Seed = 42)]
-    public void Assume_discards_examples(int x)
+    public void Property_WithAssume_ShouldDiscardExamples(int x)
     {
         Property.Assume(x % 2 == 0);
         Assert.Equal(0, x % 2);
     }
 
     [Property(RunCount = 5)]
-    public void Test_output_and_fixtures_are_available(int x)
+    public void Property_WithTestOutputAndFixtures_ShouldHaveThemAvailable(int x)
     {
         output.WriteLine($"example {x}");
     }
 
     [Property]
-    public static void Static_methods_are_supported(int x) => Assert.Equal(x, x);
+    public static void Property_WithStaticMethod_ShouldRunIt(int x) => Assert.Equal(x, x);
 
     [Property(Replay = "1:0", Seed = 1)]
-    public void Replay_runs_the_named_example(int x) => _ = x;
+    public void Property_WithReplay_ShouldRunTheNamedExample(int x) => _ = x;
 
     [Property]
-    public void Properties_without_parameters_still_run() => Assert.True(true);
+    public void Property_WithNoParameters_ShouldStillRun() => Assert.True(true);
 }
