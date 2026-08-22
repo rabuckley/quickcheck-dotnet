@@ -61,7 +61,12 @@ internal sealed class RunStatistics
         var coverage = _coverMinimums
             .OrderBy(static requirement => requirement.Key, StringComparer.Ordinal)
             .Select(requirement => new CoverageRequirement(
-                requirement.Key, requirement.Value, _labels[requirement.Key], testsRun))
+                requirement.Key,
+                requirement.Value,
+                _labels[requirement.Key],
+                // Compared without dividing, so that 100 means every example and 0 is met even when
+                // no example passed.
+                IsMet: _labels[requirement.Key] * 100.0 >= requirement.Value * testsRun))
             .ToArray()
             .AsReadOnly();
 

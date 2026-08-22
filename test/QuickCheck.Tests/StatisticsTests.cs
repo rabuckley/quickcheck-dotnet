@@ -149,9 +149,7 @@ public sealed class StatisticsTests
         // Assert
         Assert.Equal(PropertyOutcome.Passed, result.Outcome);
         var requirement = Assert.Single(result.Statistics.Coverage);
-        Assert.Equal(new CoverageRequirement("even", minimumPercent: 20, count: 50, testsRun: 100), requirement);
-        Assert.Equal(50, requirement.Percent);
-        Assert.True(requirement.IsMet);
+        Assert.Equal(new CoverageRequirement("even", MinimumPercent: 20, Count: 50, IsMet: true), requirement);
         Assert.Contains("50% even (required 20%)", result.ToString());
     }
 
