@@ -146,6 +146,29 @@ public sealed class PropertyTestCaseSerializationTests
     }
 
     [Fact]
+    public void SerializedCheckOptions_WithEveryOptionNonDefault_ShouldRoundTripEveryOption()
+    {
+        // Arrange
+        var options = new CheckOptions
+        {
+            RunCount = 7,
+            Seed = 9,
+            Replay = new Replay(9, 3),
+            MaxDiscardRatio = 3,
+            MaxShrinkAttempts = 5,
+            MaxShrinkWork = 6
+        };
+        Assert.NotEqual(CheckOptions.Default, options);
+
+        // Act
+        var serialized = global::Xunit.Sdk.SerializationHelper.Instance.Serialize(new SerializedCheckOptions(options));
+        var deserialized = Assert.IsType<SerializedCheckOptions>(global::Xunit.Sdk.SerializationHelper.Instance.Deserialize(serialized));
+
+        // Assert
+        Assert.Equal(options, deserialized.Options);
+    }
+
+    [Fact]
     public async Task An_error_round_trips_so_the_execution_process_reports_it()
     {
         var original = Assert.IsType<PropertyTestCase>(

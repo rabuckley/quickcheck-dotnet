@@ -125,12 +125,7 @@ public sealed class PropertyTestCase : XunitTestCase, ISelfExecutingXunitTestCas
         ArgumentNullException.ThrowIfNull(info);
         base.Serialize(info);
 
-        info.AddValue("qc.rc", Options.RunCount);
-        info.AddValue("qc.seed", Options.Seed);
-        info.AddValue("qc.replay", Options.Replay?.ToString());
-        info.AddValue("qc.mdr", Options.MaxDiscardRatio);
-        info.AddValue("qc.msa", Options.MaxShrinkAttempts);
-        info.AddValue("qc.msw", Options.MaxShrinkWork);
+        info.AddValue("qc.options", new SerializedCheckOptions(Options));
         info.AddValue("qc.generators", Generators);
         info.AddValue("qc.error", Error);
     }
@@ -141,15 +136,7 @@ public sealed class PropertyTestCase : XunitTestCase, ISelfExecutingXunitTestCas
         ArgumentNullException.ThrowIfNull(info);
         base.Deserialize(info);
 
-        _options = new CheckOptions
-        {
-            RunCount = info.GetValue<int>("qc.rc"),
-            Seed = info.GetValue<ulong?>("qc.seed"),
-            Replay = info.GetValue<string>("qc.replay") is { } replay ? QuickCheck.Replay.Parse(replay) : null,
-            MaxDiscardRatio = info.GetValue<int>("qc.mdr"),
-            MaxShrinkAttempts = info.GetValue<int>("qc.msa"),
-            MaxShrinkWork = info.GetValue<int>("qc.msw")
-        };
+        _options = info.GetValue<SerializedCheckOptions>("qc.options")?.Options ?? CheckOptions.Default;
         Generators = info.GetValue<Type>("qc.generators");
         Error = info.GetValue<string>("qc.error");
     }
