@@ -1,20 +1,45 @@
 # QuickCheck for .NET
 
-Property-based testing for C#.
+[![NuGet](https://img.shields.io/nuget/v/QuickCheck?label=QuickCheck)](https://www.nuget.org/packages/QuickCheck)
+[![NuGet](https://img.shields.io/nuget/v/QuickCheck.Xunit.v3?label=QuickCheck.Xunit.v3)](https://www.nuget.org/packages/QuickCheck.Xunit.v3)
+[![Build and Test](https://github.com/rabuckley/quickcheck-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/rabuckley/quickcheck-dotnet/actions/workflows/ci.yml)
 
-A conventional unit test picks an input, runs the code, and checks the output against a value you worked out by hand:
+Property-based testing for .NET.
+
+| Package               | What it is                                                                               | Docs                                        |
+| --------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `QuickCheck`          | The library: generators, properties, shrinking, reporting. No test-framework dependency. | [readme](src/QuickCheck/readme.md)          |
+| `QuickCheck.Xunit.v3` | A `[Property]` attribute for xUnit v3 (4.0+) that generates a test method's parameters.  | [readme](src/QuickCheck.Xunit.v3/readme.md) |
+
+- [Quick start](#quick-start)
+- [Why property-based testing](#why-property-based-testing)
+- [Why this library](#why-this-library)
+- [Resources](#resources)
+
+## Quick start
+
+In an xUnit v3 test project:
+
+```shell
+dotnet add package QuickCheck.Xunit.v3
+```
 
 ```csharp
-[Fact]
-public void Reverse_reverses()
+using QuickCheck;
+using QuickCheck.Xunit;
+
+public sealed class EncodingTests
 {
-    Assert.Equal(new[] { 3, 2, 1 }, Reverse(new[] { 1, 2, 3 }));
+    [Property]
+    public void Roundtrips(string s) => Assert.Equal(s, Decode(Encode(s)));
 }
 ```
 
-That proves the code works for `[1, 2, 3]`. It says nothing about the empty list, a single element, duplicates, `int.MinValue`, or a list of ten thousand items — unless you thought to write those cases too, and the cases you *didn't* think of are exactly where the bugs are.
+With any other test framework:
 
-A property-based test turns this round. Instead of choosing the input, you describe the *kind* of input the code should handle, and instead of stating one expected output, you state something that must be true of the output for **every** input — a *property*. The library then generates hundreds of inputs, runs the property against each, and reports the first one that breaks it:
+```shell
+dotnet add package QuickCheck
+```
 
 ```csharp
 using QuickCheck;
@@ -29,9 +54,7 @@ public void Reversing_twice_is_the_identity()
 }
 ```
 
-Read that as: *for all lists of integers, reversing twice gives back the original.* Each run tries 100 freshly generated lists — empty ones, long ones, ones full of extreme values — and every one of them has to satisfy the property.
-
-Random inputs are only half the story. When a property fails, the input that broke it is usually large and full of irrelevant detail. So the library **shrinks** it: it searches for the smallest input that still fails, and reports that instead. You get the bug in its simplest form, plus a token to replay that exact case:
+Either way, a failure reports the smallest input that still fails and how to replay that input again:
 
 ```
 Falsified after 12 tests and 34 shrinks (seed 3468194371).
@@ -40,196 +63,52 @@ Falsified after 12 tests and 34 shrinks (seed 3468194371).
   Replay with: new CheckOptions { Replay = Replay.Parse("3468194371:11") }
 ```
 
-### Finding properties
+For more information read the [QuickCheck readme](src/QuickCheck/readme.md) which covers generators, properties, options, replay, and statistics, and the [QuickCheck.Xunit.v3 readme](src/QuickCheck.Xunit.v3/readme.md) which covers `[Property]`, where parameter generators come from, and the attribute's settings.
 
-The hard part of property-based testing is not the tooling; it is noticing what is universally true of your code. Some patterns that turn up again and again:
+## Why property-based testing
 
-- **Round trips.** Encode then decode, serialise then deserialise, save then load — you should get back what you started with. `Decode(Encode(s)) == s`.
-- **Invariants.** Whatever the input, the output has some shape: a sort returns a list of the same length, a `Normalise` never returns a path with `..` in it, a balance never goes negative.
-- **Idempotence.** Doing it twice is the same as doing it once: `Trim(Trim(s)) == Trim(s)`.
-- **Commutativity and other algebra.** `Add(a, b) == Add(b, a)`; merging two configs then a third gives the same result as merging the second and third first.
-- **A reference implementation.** Your fast, clever version should agree with the slow, obviously-correct one on every input. This is one of the most productive patterns: the "oracle" can be a naive loop, an old implementation you're replacing, or a call to a well-tested library.
-- **It doesn't throw.** The weakest property, but a surprisingly good one: for all inputs of this shape, the code completes. Parsers, validators and anything handling untrusted input benefit from this alone.
-
-Property-based tests don't replace example-based ones. Keep the handful of concrete examples that document what the code is for; add properties to cover the space you can't enumerate by hand.
-
-## Installation
-
-```shell
-dotnet add package QuickCheck
-```
-
-## Generators
-
-A `Generator<T>` describes how to produce values of `T`. Factories live on the static `Generate` class:
+A standard unit test defines an input, runs the tested code and checks the output against a value you worked out by hand:
 
 ```csharp
-Generate.Integer<int>()             // any int, biased towards small values and the extremes
-Generate.Between(1, 10)             // inclusive range; any IBinaryInteger, spanning at most 64 bits
-Generate.Boolean()
-Generate.Char()                     // any UTF-16 code unit, biased towards printable ASCII
-Generate.String(maxLength: 20)
-Generate.Constant(42)
-Generate.Elements("red", "green")   // pick one
-Generate.Enum<DayOfWeek>()
-Generate.OneOf(genA, genB)          // pick a generator uniformly
-Generate.Frequency((9, common), (1, rare))
-Generate.Tuple(genA, genB)
-```
-
-Generators compose. Combinators are extension members on `Generator<T>`, so LINQ query syntax works:
-
-```csharp
-var evens = Generate.Integer<int>().Select(x => x * 2);
-var nonEmpty = Generate.String().Where(s => s.Length > 0);
-var lists = Generate.Between(0, 100).List(minLength: 1, maxLength: 10);
-var arrays = Generate.Boolean().Array();
-var maybe = Generate.String().OrNull();          // reference types
-var maybeInt = Generate.Integer<int>().Nullable(); // value types
-
-// Dependent generation: a slice whose bounds lie inside its array.
-var slices =
-    from array in Generate.Integer<int>().Array(minLength: 1)
-    from start in Generate.Between(0, array.Length - 1)
-    from length in Generate.Between(0, array.Length - start)
-    select (array, start, length);
-```
-
-For your own types, build a generator out of existing ones. `Generate.From` hands you a `ChoiceSource` to draw from:
-
-```csharp
-Generator<Money> money = Generate.From(source =>
-    new Money(source.Draw(Generate.Between(0L, 1_000_000L)), source.Draw(Generate.Elements("GBP", "USD"))));
-```
-
-A generator built this way shrinks just as well as the built-in ones: shrinking works on the choices drawn from the `ChoiceSource`, not on the finished value, so it needs no knowledge of `Money` (see [How shrinking works](#how-shrinking-works)).
-
-A type can declare its own default generator by implementing `IArbitrary<T>`; the xUnit adapter below uses it for parameters of that type.
-
-Use `generator.Sample(count, seed)` to eyeball what a generator produces before you rely on it.
-
-## Properties
-
-`Property.ForAll` pairs one to three generators with a body. A body that returns `bool` fails on `false`; a `void` body fails by throwing — so ordinary test assertions work inside it:
-
-```csharp
-Property.ForAll(Generate.Integer<int>(), Generate.Integer<int>(), (a, b) => a + b == b + a).Assert();
-
-Property.ForAll(Generate.String(), s =>
+[Fact]
+public void Reverse_reverses()
 {
-    var roundTripped = Decode(Encode(s));
-    Assert.Equal(s, roundTripped);
-}).Assert();
-```
-
-- `Assert(options)` throws `PropertyFailedException` on failure — use it in tests. The message is the report shown above.
-- `Check(options)` returns a `PropertyResult<T>` with the outcome, seed, counterexamples, and shrink counts, without throwing.
-- `Property.Assume(condition)` discards the current example when a precondition doesn't hold. Prefer a generator that only produces valid inputs; a property that discards too much is reported as `Exhausted` rather than silently passing on a handful of examples.
-
-`CheckOptions` controls the run: `RunCount` (default 100), `Seed`, `Replay` (re-run one specific failing example), `MaxShrinkAttempts`, `MaxShrinkWork` (the total choices shrinking may replay, which bounds the work one very large counterexample can cost), and `MaxDiscardRatio`. Both `Assert` and `Check` also take a `CancellationToken` after the options; it aborts the check between examples and between shrink attempts, throwing rather than reporting a result. The body is not given the token, so a long-running body runs to completion — but a body that throws `OperationCanceledException` while that token is cancelled aborts the check rather than being recorded as a counterexample.
-
-Bodies can be asynchronous. `ForAll` with a `Task`-returning body gives an `AsyncProperty<T>` with `CheckAsync` and `AssertAsync`; examples are awaited one at a time so shrinking stays deterministic.
-
-```csharp
-await Property.ForAll(Generate.String(), async s => Assert.Equal(s, await RoundTripAsync(s))).AssertAsync();
-```
-
-Await the result: an `AssertAsync()` left un-awaited in a non-`async` test method compiles without a warning and the test passes whatever the property does.
-
-### Statistics
-
-A property can pass while exercising almost nothing. Four statics, called from the body like `Assume`, report what each example exercised, and the passing report prints the distribution:
-
-- `Property.Classify(condition, label)` counts the example under `label` when `condition` holds; `Property.Label(label)` counts it unconditionally.
-- `Property.Collect(name, value)` counts the example under `value` in the table called `name`. The value is your text, used as the table key and printed as given.
-- `Property.Cover(condition, minimumPercent, label)` counts like `Classify` and fails the check with `InsufficientCoverage` if fewer than `minimumPercent` of the examples hit the label.
-
-```csharp
-Property.ForAll(Generate.Integer<int>().List(), list =>
-{
-    Property.Classify(list.Count == 0, "empty");
-    Property.Cover(list.Count >= 5, 20, "five or more");
-    Property.Collect("sign of first", list.Count == 0 ? "none" : Math.Sign(list[0]).ToString());
-    Assert.Equal(list, list.AsEnumerable().Reverse().Reverse());
-}).Assert();
-```
-
-```
-Passed 100 tests (seed 1).
-  34% five or more (required 20%)
-  19% empty
-  sign of first:
-    43% -1
-    37% 1
-    19% none
-    1% 0
-```
-
-A label counts at most once per example however often the body reports it, and only passed examples count: discarded examples and shrink candidates do not, so percentages are of `TestsRun`. A label whose condition never holds still prints, at 0%. `Check` returns the same numbers as `result.Statistics`.
-
-`Cover` is a floor that catches a distribution far off what you intended, not an assertion about the rate the generator really produces: it is a plain threshold over one seed's `RunCount` examples, so a minimum close to the rate you expect fails on an unlucky seed. State a minimum you would want to be told about falling below, and read the real rate off the report. Call it on every example with the condition as the argument rather than inside an `if`: the percentage is of every passed example, not of the examples that reach the call, so a guarded call under-counts and fails on a requirement you only meant to hold inside the branch.
-
-### Reproducing failures
-
-Every check is driven by a seed, which is printed in the report. The library owns its random number generator, so the same seed produces the same examples on every machine and runtime. To pin down a failure while you fix it, pass the replay token from the report:
-
-```csharp
-Property.ForAll(generator, body).Assert(new CheckOptions { Replay = Replay.Parse("3468194371:11") });
-```
-
-That runs only the failing example (and shrinks it as usual). Once fixed, drop the option and the test goes back to exploring fresh inputs each run.
-
-## xUnit.net v3
-
-The `QuickCheck.Xunit.v3` package adds a `[Property]` attribute: xUnit generates each parameter of the method, runs it on many examples, and reports the shrunk counterexample when it fails. Everything else about the test — fixtures, `ITestOutputHelper`, `Skip`, `Timeout`, traits — works as for `[Fact]`.
-
-```shell
-dotnet add package QuickCheck.Xunit.v3
-```
-
-```csharp
-using QuickCheck;
-using QuickCheck.Xunit;
-
-public sealed class EncodingTests
-{
-    [Property]
-    public void Round_trips(string s) => Assert.Equal(s, Decode(Encode(s)));
-
-    [Property(RunCount = 500)]
-    public bool Sorting_is_idempotent(List<int> items) =>
-        items.Order().SequenceEqual(items.Order().Order());
-
-    [Property]
-    public async Task Handles_any_request(Request request) => await Handle(request);
+    Assert.Equal([3, 2, 1], Reverse([1, 2, 3]));
 }
 ```
 
-Methods may return `void`, `bool`, `Task`, `ValueTask`, `Task<bool>`, or `ValueTask<bool>`. A parameter's generator is found, in order, from:
+That proves the code works for `[1, 2, 3]` but not an empty list, a single element, lists with duplicates, `int.MinValue`, or a list of ten thousand items, unless you thought of and wrote those cases too. The cases cases you _didn't_ think to test are often where the bugs are.
 
-1. `[Generator(nameof(Member))]` on the parameter — a static `Generator<T>` property, field, or parameterless method on the test class (or on `Generators`, or on an explicit `[Generator(typeof(Source), "Member")]`). It applies to a record's positional parameters too, so a nested member can name its own generator.
-2. A **public** static `Generator<T>` member of the attribute's `Generators` type, matched by type — this also applies to nested members of records.
-3. The type's `IArbitrary<T>` implementation.
-4. Built-ins: integers, `bool`, `char`, `string`, enums, `Nullable<T>`, arrays, `List<T>` and its interfaces, tuples, and any type with a single public constructor (records included), derived recursively. Nullable annotations add `null` examples.
+Instead of defining a fixed input, property-based tests describe the _kind_ of input the code should handle, and instead of stating one expected output, you state something that must be true of the output for every input: a _property_. This library then generates hundreds of inputs, checks the property holds against each and reports the first one that breaks it.
 
-Missing or ambiguous generators are reported at discovery, naming the parameter. A failure reads:
+Because the inputs are randomised, when a property fails the input that broke it is usually large and mised with irrelevant detail. We therefore shrink failures by searching for the "smallest" input that still fails.
 
-```
-Falsified after 12 tests and 34 shrinks (seed 3468194371).
-  Minimal counterexample: s = "\u0000"
-  Original counterexample: s = "K\u0000ap9"
-  Replay with: [Property(Replay = "3468194371:11")]
-```
+### Finding properties
 
-`[Property]` accepts `RunCount`, `Seed`, `Replay`, `MaxShrinkAttempts`, `MaxShrinkWork`, and `Generators`. A passing property writes `Passed 100 tests (seed …)` and any label distribution to the test output. Requires xunit.v3 4.0.0 or later, on the reflection-based extensibility surface (`xunit.v3.extensibility.core`): generators are derived by reflection, so `[Property]` does not work with `xunit.v3.extensibility.core.aot`, the code-generation surface for native AOT.
+The hard part of property-based testing is identifying what the properties of your system are. Some common patterns are:
 
-## How shrinking works
+- **Round trips.** Encode then decode, serialise then deserialise, save then load. In each case you should get back what you started with (`Decode(Encode(s)) == s`.)
+- **Invariants.** Whatever the input, the output has some shape. For example, a sort returns a list of the same length, a balance never goes negative, a Raft implementation never elects two leaders in a single term.
+- **Idempotence.** Doing it twice is the same as doing it once (`Trim(Trim(s)) == Trim(s)`.)
+- **Commutativity and other algebra.** `Add(a, b) == Add(b, a)`; merging two configs then a third gives the same result as merging the second and third first.
+- **A reference implementation.** Your optimised algorithm should agree with the slow, obviously-correct one on every input. The "oracle" can be a naive loop, an old implementation you're replacing, or a call to a well-tested library.
+- **It doesn't throw.** For all inputs of this shape, the code completes without throwing an exception. Parsers, validators and anything handling untrusted input benefit from this.
 
-During generation, every decision a generator makes — how long a list is, which branch of `OneOf` was taken, what an integer's value is — is recorded as an integer *choice*, with `0` always meaning the simplest option. A generated value is entirely a function of that choice sequence.
+## Why this library
 
-When an example fails, the shrinker doesn't try to edit the value; it edits the choice sequence — deleting spans, zeroing them, binary-searching individual choices towards zero, shrinking equal choices together, and moving value between numeric pairs — then replays the generator on the edited sequence and keeps any candidate that still fails *in the same way* (same exception type). Because shrinking only ever moves the sequence strictly towards "simpler", it always terminates; and because it works below the level of values, `Select`, `Where`, `SelectMany` and any custom generator get shrinking for free.
+This library has made a few important choices:
+
+- **Shrinking is free for every generator.** Generation is recorded as a sequence of integer choices and shrinking edits that sequence, the approach [Hypothesis](https://hypothesis.readthedocs.io/) takes. A generator you write with `Select`, `Where`, `SelectMany`, or `Generate.From` shrinks as well as a built-in one, and there is no shrinker to write by hand.
+- **Generators are ordinary values.** `Generator<T>` composes with LINQ, including query syntax for dependent generation, and a type can carry its own default generator through `IArbitrary<T>`.
+- **Failures replay anywhere.** The library owns its random number generator, so a seed produces the same examples on every machine and runtime, and every report prints the token that reruns its counterexample.
+- **Modern .NET.** Asynchronous property bodies, cancellation, numeric generics, nullable annotations that add `null` examples and an AOT-compatible core library with no dependencies.
+- **An xUnit.net v3 adapter.** `[Property]` derives generators for parameters, records included and reports the shrunk counterexample and replay token in the test output.
 
 ## Resources
 
-- [Haskell's QuickCheck](https://hackage.haskell.org/package/QuickCheck), the original property-based testing library, and the paper that introduced it: [*QuickCheck: A Lightweight Tool for Random Testing of Haskell Programs*](https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf)
+- [Haskell's QuickCheck](https://hackage.haskell.org/package/QuickCheck), the original property-based testing library, and the paper that introduced it: [_QuickCheck: A Lightweight Tool for Random Testing of Haskell Programs_](https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quick.pdf)
 - [Hypothesis](https://hypothesis.readthedocs.io/), whose choice-sequence approach to shrinking this library follows
+
+## License
+
+[MIT](LICENSE).
