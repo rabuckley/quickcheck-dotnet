@@ -113,8 +113,8 @@ public static class Property
     /// <summary>
     /// Counts the current example under <paramref name="label"/> when <paramref name="condition"/>
     /// is <see langword="true"/>, as <see cref="Classify"/> does, and requires at least
-    /// <paramref name="minimumPercent"/> of the passed examples to hit the label, printing a
-    /// shortfall as a warning in the report of a passed check.
+    /// <paramref name="minimumPercent"/> of the passed examples to hit the label. A shortfall is a
+    /// warning by default and fails the check under <see cref="CheckOptions.CoverageConfidence"/>.
     /// </summary>
     /// <param name="condition">Whether the current example hits the label.</param>
     /// <param name="minimumPercent">
@@ -139,12 +139,17 @@ public static class Property
     /// for one label take the larger minimum.
     /// </para>
     /// <para>
-    /// The requirement is compared with the rate seen over the <see cref="CheckOptions.RunCount"/>
-    /// examples of one seed, and a shortfall prints as <c>Only x% label, but required y%</c> under
-    /// the headline of a <see cref="PropertyOutcome.Passed"/> result, so that a chance dip on an
-    /// unlucky seed never fails a test. Read the real rate off the report. Nothing is compared when
-    /// a single example is replayed through <see cref="CheckOptions.Replay"/>, and a falsified or
-    /// exhausted check reports that outcome instead.
+    /// By default the requirement is compared with the rate seen over the
+    /// <see cref="CheckOptions.RunCount"/> examples of one seed, and a shortfall prints as
+    /// <c>Only x% label, but required y%</c> under the headline of a
+    /// <see cref="PropertyOutcome.Passed"/> result, so that a chance dip on an unlucky seed never
+    /// fails a test. Set <see cref="CheckOptions.CoverageConfidence"/> to make the requirement an
+    /// assertion about the rate the generator really produces: the check then runs past
+    /// <see cref="CheckOptions.RunCount"/> until every requirement is known to be met or one is
+    /// known to be missed, and a known miss fails with
+    /// <see cref="PropertyOutcome.InsufficientCoverage"/>. Nothing is checked when a single example
+    /// is replayed through <see cref="CheckOptions.Replay"/>, and a falsified or exhausted check
+    /// reports that outcome instead.
     /// </para>
     /// </remarks>
     public static void Cover(bool condition, double minimumPercent, string label)

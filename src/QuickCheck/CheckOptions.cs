@@ -12,8 +12,9 @@ public sealed record CheckOptions
     public static CheckOptions Default { get; } = new();
 
     /// <summary>
-    /// Gets the number of examples that must pass before the property is reported as passed. The
-    /// default is 100.
+    /// Gets the number of examples that must pass before the property is reported as passed. When
+    /// <see cref="CoverageConfidence"/> is set it is the fewest that must pass; the check may run
+    /// longer. The default is 100.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// The value is less than or equal to zero.
@@ -58,6 +59,17 @@ public sealed record CheckOptions
             field = value;
         }
     } = 10;
+
+    /// <summary>
+    /// Gets the confidence to which <see cref="Property.Cover"/> requirements are checked. The
+    /// default, <see langword="null"/>, prints an unmet requirement as a warning and passes. When
+    /// set, <see cref="RunCount"/> is the fewest examples that must pass; the check looks at the
+    /// coverage at <see cref="RunCount"/> and after 100, 200, 400, … passes until every requirement
+    /// is known to be met or one is known to be missed, so a run can be much longer than
+    /// <see cref="RunCount"/>, and a known miss fails with
+    /// <see cref="PropertyOutcome.InsufficientCoverage"/> even before <see cref="RunCount"/>.
+    /// </summary>
+    public Confidence? CoverageConfidence { get; init; }
 
     /// <summary>
     /// Gets the maximum number of candidate examples the shrinker may evaluate while minimising a

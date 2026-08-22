@@ -76,14 +76,15 @@ public sealed class AccountTests
 
 `[Property]` accepts the same options as `CheckOptions` in the core library, plus `Generators`:
 
-| Setting             | Default   | Effect                                                                                |
-| ------------------- | --------- | ------------------------------------------------------------------------------------- |
-| `RunCount`          | 100       | Examples to try before passing.                                                       |
-| `Seed`              | random    | Fixes the example sequence.                                                           |
-| `Replay`            | none      | A token from a failure report, for example `"3468194371:11"`; runs only that example. |
-| `MaxShrinkAttempts` | 10,000    | Candidates the shrinker may try; 0 disables shrinking.                                |
-| `MaxShrinkWork`     | 5,000,000 | Total choices shrinking may replay.                                                   |
-| `Generators`        | none      | A type whose public static `Generator<T>` members supply generators by type.          |
+| Setting             | Default   | Effect                                                                                             |
+| ------------------- | --------- | -------------------------------------------------------------------------------------------------- |
+| `RunCount`          | 100       | Examples to try before passing.                                                                    |
+| `Seed`              | random    | Fixes the example sequence.                                                                        |
+| `Replay`            | none      | A token from a failure report, for example `"3468194371:11"`; runs only that example.              |
+| `MaxShrinkAttempts` | 10,000    | Candidates the shrinker may try; 0 disables shrinking.                                             |
+| `MaxShrinkWork`     | 5,000,000 | Total choices shrinking may replay.                                                                |
+| `CheckCoverage`     | false     | Fails the test when a `Property.Cover` requirement is known to be missed; see [Reports](#reports). |
+| `Generators`        | none      | A type whose public static `Generator<T>` members supply generators by type.                       |
 
 ## Reports
 
@@ -96,4 +97,4 @@ Falsified after 12 tests and 34 shrinks (seed 3468194371).
   Replay with: [Property(Replay = "3468194371:11")]
 ```
 
-A passing property writes `Passed 100 tests (seed …)` and any label distribution to the test output.
+A passing property writes `Passed 100 tests (seed …)` and any label distribution to the test output. An unmet `Property.Cover` requirement prints there as `Only 3% label, but required 20%` and the test still passes; with `CheckCoverage = true` the property runs past `RunCount` until the requirement is known to be met or missed, and a known miss fails the test with `Insufficient coverage after … tests`. Deciding a small minimum can take a million or more examples, so give such a test a `Timeout`.

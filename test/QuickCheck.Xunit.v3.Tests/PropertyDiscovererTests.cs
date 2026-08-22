@@ -32,7 +32,15 @@ public sealed class PropertyDiscovererTests
     public async Task Discover_WithValidMethod_ShouldCreateOnePropertyTestCaseCarryingItsSettings()
     {
         // Arrange
-        var attribute = new PropertyAttribute { RunCount = 7, Seed = 9, MaxShrinkAttempts = 3, MaxShrinkWork = 4, Generators = typeof(Samples) };
+        var attribute = new PropertyAttribute
+        {
+            RunCount = 7,
+            Seed = 9,
+            MaxShrinkAttempts = 3,
+            MaxShrinkWork = 4,
+            CheckCoverage = true,
+            Generators = typeof(Samples)
+        };
 
         // Act
         var testCase = Assert.IsType<PropertyTestCase>(await TestHost.Discover(typeof(Samples), nameof(Samples.Fine), attribute));
@@ -42,6 +50,7 @@ public sealed class PropertyDiscovererTests
         Assert.Equal(9UL, testCase.Options.Seed);
         Assert.Equal(3, testCase.Options.MaxShrinkAttempts);
         Assert.Equal(4, testCase.Options.MaxShrinkWork);
+        Assert.Equal(Confidence.Default, testCase.Options.CoverageConfidence);
         Assert.Null(testCase.Options.Replay);
         Assert.Equal(typeof(Samples), testCase.Generators);
         Assert.Equal("QuickCheck.Xunit.Tests.PropertyDiscovererTests+Samples.Fine", testCase.TestCaseDisplayName);
@@ -182,7 +191,8 @@ public sealed class PropertyTestCaseSerializationTests
             Replay = new Replay(9, 3),
             MaxDiscardRatio = 3,
             MaxShrinkAttempts = 5,
-            MaxShrinkWork = 6
+            MaxShrinkWork = 6,
+            CoverageConfidence = new Confidence { Certainty = 1_000_000, Tolerance = 0.8 }
         };
         Assert.NotEqual(CheckOptions.Default, options);
 

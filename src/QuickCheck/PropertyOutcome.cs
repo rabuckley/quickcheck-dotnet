@@ -14,6 +14,10 @@ public enum PropertyOutcome
     /// <summary>Too many examples were discarded to reach the required run count.</summary>
     Exhausted,
 
-    /// <summary>Every example passed but a <see cref="Property.Cover"/> requirement was not met.</summary>
+    /// <summary>
+    /// Every example passed but a <see cref="Property.Cover"/> requirement is known to be missed,
+    /// to the certainty of <see cref="CheckOptions.CoverageConfidence"/>. Only that option produces
+    /// this outcome; by default an unmet requirement is a warning on a <see cref="Passed"/> result.
+    /// </summary>
     InsufficientCoverage
 }

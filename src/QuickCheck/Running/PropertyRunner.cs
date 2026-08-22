@@ -46,12 +46,15 @@ internal sealed class PropertyRunner<T>
         }
 
         var seed = options.Seed ?? (ulong)Random.Shared.NextInt64();
-        var maxDiscards = checked(options.RunCount * options.MaxDiscardRatio);
+        var confidence = options.CoverageConfidence;
         var passed = 0;
         var discards = 0;
+        var looks = 0;
         var statistics = new RunStatistics();
 
-        for (var run = 0; passed < options.RunCount; run++)
+        // With a coverage confidence the loop has no fixed length: it ends when the coverage is
+        // decided, and is bounded by cancellation rather than by the counters.
+        for (var run = 0;; run++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -65,15 +68,53 @@ internal sealed class PropertyRunner<T>
                 case ExampleStatus.Passed:
                     passed++;
                     statistics.Merge(example.Statistics!);
+
+                    if (confidence is null)
+                    {
+                        if (passed == options.RunCount)
+                        {
+                            return PropertyResult.Passed<T>(seed, passed, discards, Snapshot());
+                        }
+
+                        break;
+                    }
+
+                    if (!CoverageLook.IsDue(passed, options.RunCount))
+                    {
+                        break;
+                    }
+
+                    var look = new CoverageLook(confidence, passed, looks++);
+
+                    var verdicts = statistics.CoverRequirements
+                        .Select(requirement => look.Verdict(requirement.MinimumPercent, requirement.Count))
+                        .ToArray();
+
+                    // A rate known to lie within the tolerance is met, so a requirement the check
+                    // has settled never fails it; a shortfall ends the check before RunCount, but a
+                    // check whose requirements are all met still waits for it.
+                    if (passed >= options.RunCount
+                        && Array.TrueForAll(verdicts, static verdict => verdict == CoverageVerdict.Met))
+                    {
+                        return PropertyResult.Passed<T>(seed, passed, discards, statistics.ToPropertyStatistics(look));
+                    }
+
+                    if (Array.Exists(verdicts, static verdict => verdict == CoverageVerdict.Unmet))
+                    {
+                        return PropertyResult.InsufficientCoverage<T>(
+                            seed, passed, discards, statistics.ToPropertyStatistics(look));
+                    }
+
                     break;
 
                 case ExampleStatus.Discarded:
                     discards++;
 
-                    if (discards > maxDiscards)
+                    // The budget grows with the run so that a long coverage check is not exhausted
+                    // by a discard rate the RunCount examples would have tolerated.
+                    if (discards > (long)options.MaxDiscardRatio * Math.Max(passed, options.RunCount))
                     {
-                        return PropertyResult.Exhausted<T>(
-                            seed, passed, discards, statistics.ToPropertyStatistics(passed));
+                        return PropertyResult.Exhausted<T>(seed, passed, discards, Snapshot());
                     }
 
                     break;
@@ -84,13 +125,16 @@ internal sealed class PropertyRunner<T>
                         new Replay(seed, run),
                         passed,
                         discards,
-                        statistics.ToPropertyStatistics(passed),
+                        Snapshot(),
                         options,
                         cancellationToken).ConfigureAwait(false);
             }
         }
 
-        return PropertyResult.Passed<T>(seed, passed, discards, statistics.ToPropertyStatistics(passed));
+        // Between looks a requirement is held to the standard of the look that would come next.
+        PropertyStatistics Snapshot() => confidence is null
+            ? statistics.ToPropertyStatistics(passed)
+            : statistics.ToPropertyStatistics(new CoverageLook(confidence, passed, looks));
     }
 
     private async ValueTask<PropertyResult<T>> CheckSingleAsync(

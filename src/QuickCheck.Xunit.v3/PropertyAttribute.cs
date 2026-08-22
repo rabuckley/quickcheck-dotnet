@@ -75,6 +75,16 @@ public class PropertyAttribute(
     public int MaxShrinkWork { get; set; } = -1;
 
     /// <summary>
+    /// Sets <see cref="CheckOptions.CoverageConfidence"/> to <see cref="Confidence.Default"/>: an
+    /// unmet <see cref="Property.Cover"/> requirement fails the test instead of printing a warning,
+    /// and the property may run many more than <see cref="RunCount"/> examples to decide. A true
+    /// rate near the stated minimum is the slowest to decide, and the smaller the minimum the more
+    /// examples it takes: thousands to tens of thousands at 50%, a million or more at 1%. Set
+    /// <see cref="FactAttribute.Timeout"/> on a test whose minimum is small.
+    /// </summary>
+    public bool CheckCoverage { get; set; }
+
+    /// <summary>
     /// A type whose public static <c>Generator&lt;T&gt;</c> properties, fields, or
     /// parameterless methods supply the generator for any parameter (or
     /// nested member) of type <c>T</c>. Also searched, private members
@@ -120,6 +130,11 @@ public class PropertyAttribute(
         if (MaxShrinkWork >= 0)
         {
             options = options with { MaxShrinkWork = MaxShrinkWork };
+        }
+
+        if (CheckCoverage)
+        {
+            options = options with { CoverageConfidence = Confidence.Default };
         }
 
         return options;

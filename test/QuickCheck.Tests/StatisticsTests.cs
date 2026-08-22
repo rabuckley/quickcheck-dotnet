@@ -119,6 +119,7 @@ public sealed class StatisticsTests
     {
         // Arrange
         var invocations = 0;
+
         var property = Property.ForAll(Generate.Between(0, 1000), x =>
         {
             invocations++;
@@ -158,6 +159,7 @@ public sealed class StatisticsTests
     {
         // Arrange
         var n = 0;
+
         var property = Property.ForAll(Generate.Integer<int>(), _ =>
         {
             Property.Cover(n++ % 10 == 0, 50, "tenth");
@@ -172,6 +174,7 @@ public sealed class StatisticsTests
         Assert.Equal(PropertyOutcome.Passed, result.Outcome);
         Assert.Null(exception);
         Assert.False(Assert.Single(result.Statistics.Coverage).IsMet);
+
         Assert.Equal(
             "Passed 100 tests (seed 1).\n"
             + "  Only 10% tenth, but required 50%\n"
@@ -243,7 +246,8 @@ public sealed class StatisticsTests
         });
 
         // Act
-        var result = property.Check(new CheckOptions { Replay = new Replay(1, 0) });
+        var result = property.Check(new CheckOptions
+            { Replay = new Replay(1, 0), CoverageConfidence = Confidence.Default });
 
         // Assert
         Assert.Equal(PropertyOutcome.Passed, result.Outcome);
@@ -258,6 +262,7 @@ public sealed class StatisticsTests
     {
         // Arrange
         var n = 0;
+
         var property = Property.ForAll(Generate.Integer<int>(), _ =>
         {
             Property.Cover(false, 50, "never");
@@ -265,13 +270,14 @@ public sealed class StatisticsTests
         });
 
         // Act
-        var result = property.Check(new CheckOptions { Seed = 1, RunCount = 10, MaxDiscardRatio = 1 });
+        var result = property.Check(
+            new CheckOptions { Seed = 1, RunCount = 10, MaxDiscardRatio = 1, CoverageConfidence = Confidence.Default });
 
         // Assert
         Assert.Equal(PropertyOutcome.Exhausted, result.Outcome);
         Assert.True(result.TestsRun > 0);
         Assert.Equal(0, result.Statistics.Labels["never"]);
-        Assert.False(Assert.Single(result.Statistics.Coverage).IsMet);
+        Assert.Equal(0, Assert.Single(result.Statistics.Coverage).Count);
     }
 
     [Fact]
@@ -316,10 +322,8 @@ public sealed class StatisticsTests
     public void Label_WithParallelWorkInsideTheBody_ShouldCountOncePerExample()
     {
         // Arrange
-        var property = Property.ForAll(Generate.Integer<int>(), _ =>
-        {
-            Parallel.For(0, 64, i => Property.Label($"worker {i % 4}"));
-        });
+        var property = Property.ForAll(Generate.Integer<int>(),
+            _ => { Parallel.For(0, 64, i => Property.Label($"worker {i % 4}")); });
 
         // Act
         var result = property.Check(Hundred);
@@ -354,6 +358,7 @@ public sealed class StatisticsTests
     {
         // Arrange
         var n = 0;
+
         var property = Property.ForAll(Generate.Integer<int>(), _ =>
         {
             Property.Label("b");
@@ -393,7 +398,8 @@ public sealed class StatisticsTests
     /// </summary>
     private static Exception BodyException(Action call)
     {
-        var result = Property.ForAll(Generate.Integer<int>(), _ => call()).Check(new CheckOptions { Seed = 1, RunCount = 1 });
+        var result = Property.ForAll(Generate.Integer<int>(), _ => call())
+            .Check(new CheckOptions { Seed = 1, RunCount = 1 });
 
         Assert.Equal(PropertyOutcome.Falsified, result.Outcome);
         return result.Minimal!.Exception!;

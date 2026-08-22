@@ -159,14 +159,15 @@ Two ways to run a property:
 
 Configure via `CheckOptions`. Only set what you need:
 
-| Option              | Default   | Effect                                                                                                    |
-| ------------------- | --------- | --------------------------------------------------------------------------------------------------------- |
-| `RunCount`          | 100       | Examples to try before passing.                                                                           |
-| `Seed`              | random    | Fixes the example sequence; the report prints the seed used.                                              |
-| `Replay`            | none      | Runs only one specific example from an earlier report; see [Reproducing failures](#reproducing-failures). |
-| `MaxDiscardRatio`   | 10        | Discards allowed per passed example before the check is `Exhausted`.                                      |
-| `MaxShrinkAttempts` | 10,000    | Candidates the shrinker may try; 0 disables shrinking.                                                    |
-| `MaxShrinkWork`     | 5,000,000 | Total choices shrinking may replay, which bounds the work one very large counterexample can cost.         |
+| Option               | Default   | Effect                                                                                                                    |
+| -------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `RunCount`           | 100       | Examples to try before passing; the fewest examples that must pass when `CoverageConfidence` is set.                      |
+| `Seed`               | random    | Fixes the example sequence; the report prints the seed used.                                                              |
+| `Replay`             | none      | Runs only one specific example from an earlier report; see [Reproducing failures](#reproducing-failures).                 |
+| `MaxDiscardRatio`    | 10        | Discards allowed per passed example before the check is `Exhausted`.                                                      |
+| `MaxShrinkAttempts`  | 10,000    | Candidates the shrinker may try; 0 disables shrinking.                                                                    |
+| `MaxShrinkWork`      | 5,000,000 | Total choices shrinking may replay, which bounds the work one very large counterexample can cost.                         |
+| `CoverageConfidence` | none      | Checks `Cover` requirements to a stated certainty and fails on a known miss; see [Checking coverage](#checking-coverage). |
 
 ### Cancellation
 
@@ -196,7 +197,7 @@ A property can pass while exercising almost nothing. Four methods report what ea
 
 - `Property.Classify(condition, label)` counts the example under `label` when `condition` holds. `Property.Label(label)` counts it unconditionally.
 - `Property.Collect(name, value)` counts the example under `value` in a table called `name`.
-- `Property.Cover(condition, minimumPercent, label)` counts like `Classify` and states that at least `minimumPercent` of the examples should hit the label. A shortfall prints as a warning, `Only 3% label, but required 20%`, under the headline of a passing report.
+- `Property.Cover(condition, minimumPercent, label)` counts like `Classify` and states that at least `minimumPercent` of the examples should hit the label. A shortfall prints as a warning, `Only 3% label, but required 20%`, under the headline of a passing report; see [Checking coverage](#checking-coverage) to make it fail the check.
 
 ```csharp
 Property.ForAll(Generate.Integer<int>().List(), list =>
@@ -218,6 +219,20 @@ Passed 100 tests (seed 1).
     19% none
     1% 0
 ```
+
+### Checking coverage
+
+A `Cover` shortfall is only a warning by default because a plain threshold over one seed's `RunCount` examples fails about half the time when the real rate equals the minimum. To make the requirement an assertion, set `CoverageConfidence`, which is Haskell QuickCheck's [`checkCoverage`](https://hackage-content.haskell.org/package/QuickCheck-2.18.0.0/docs/Test-QuickCheck.html#v:checkCoverage):
+
+```csharp
+Property.ForAll(generator, body).Assert(new CheckOptions { CoverageConfidence = Confidence.Default });
+```
+
+The check then treats `RunCount` as the fewest examples that must pass and looks at the coverage at `RunCount` and after 100, 200, 400, … passes until every requirement is known to be met or one is known to be missed. A run can therefore be much longer than `RunCount`, and a shortfall known early fails with `InsufficientCoverage` before `RunCount` is reached. "Known" means to the `Certainty` of the confidence, one wrong decision in a billion checks by default.
+
+A true rate near the minimum is the slowest to decide, and a small minimum needs far more examples than a large one: with the defaults, a rate at a 50% minimum decides after about 6,400 examples, one in the middle of the tolerance band after about 25,600, and a rate at a 1% minimum takes around a million. A rate between `Tolerance` (0.9 by default) times the minimum and the minimum may be accepted or rejected, so state the minimum you need rather than the rate you expect. [Haskell QuickCheck's rule](https://hackage-content.haskell.org/package/QuickCheck-2.18.0.0/docs/Test-QuickCheck.html#t:Confidence) for `Certainty` is 100 times the number of `Cover` calls in the suite, times how often the suite is expected to run, for a 1% chance of a wrong failure over the project's lifetime.
+
+Each look compares a [Wilson score interval](https://doi.org/10.1080/01621459.1927.10502953) for the requirement with the minimum, at a z-score from [Acklam's inverse normal approximation](https://web.archive.org/web/20151110174102/http://home.online.no/~pjacklam/notes/invnorm/), and spends half the error budget the previous look left, so the certainty covers the run however many looks it takes; QuickCheck spends the whole budget at every look, so its certainty holds per look. The interval is Wilson's rather than the normal approximation, whose accuracy is erratic at exactly the rates and counts a coverage check works with, as [Brown, Cai and DasGupta](https://doi.org/10.1214/ss/1009213286) measure.
 
 ## How shrinking works
 

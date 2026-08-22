@@ -44,10 +44,30 @@ internal sealed class RunStatistics
     }
 
     /// <summary>
-    /// Takes an immutable snapshot with percentages of <paramref name="testsRun"/>, the number of
-    /// examples that passed.
+    /// Gets each <see cref="Property.Cover"/> requirement's minimum and the number of passed examples
+    /// that hit its label, for a <see cref="CoverageLook"/> to decide without a snapshot.
     /// </summary>
-    public PropertyStatistics ToPropertyStatistics(int testsRun)
+    public IEnumerable<(double MinimumPercent, int Count)> CoverRequirements =>
+        _coverMinimums.Select(requirement => (requirement.Value, _labels[requirement.Key]));
+
+    /// <summary>
+    /// Takes an immutable snapshot in which a <see cref="Property.Cover"/> requirement is met when
+    /// its count reaches the minimum share of <paramref name="testsRun"/>, the number of examples
+    /// that passed.
+    /// </summary>
+    public PropertyStatistics ToPropertyStatistics(int testsRun) =>
+        // Compared without dividing, so that 100 means every example and 0 is met even when no
+        // example passed.
+        ToPropertyStatistics((minimumPercent, count) => count * 100.0 >= minimumPercent * testsRun);
+
+    /// <summary>
+    /// Takes an immutable snapshot in which a <see cref="Property.Cover"/> requirement is met
+    /// unless <paramref name="look"/> finds it <see cref="CoverageVerdict.Unmet"/>.
+    /// </summary>
+    public PropertyStatistics ToPropertyStatistics(CoverageLook look) =>
+        ToPropertyStatistics((minimumPercent, count) => look.Verdict(minimumPercent, count) != CoverageVerdict.Unmet);
+
+    private PropertyStatistics ToPropertyStatistics(Func<double, int, bool> isMet)
     {
         var labels = new ReadOnlyDictionary<string, int>(new Dictionary<string, int>(_labels, StringComparer.Ordinal));
 
@@ -55,7 +75,8 @@ internal sealed class RunStatistics
             _tables.ToDictionary(
                 static table => table.Key,
                 static IReadOnlyDictionary<string, int> (table) =>
-                    new ReadOnlyDictionary<string, int>(new Dictionary<string, int>(table.Value, StringComparer.Ordinal)),
+                    new ReadOnlyDictionary<string, int>(
+                        new Dictionary<string, int>(table.Value, StringComparer.Ordinal)),
                 StringComparer.Ordinal));
 
         var coverage = _coverMinimums
@@ -64,9 +85,7 @@ internal sealed class RunStatistics
                 requirement.Key,
                 requirement.Value,
                 _labels[requirement.Key],
-                // Compared without dividing, so that 100 means every example and 0 is met even when
-                // no example passed.
-                IsMet: _labels[requirement.Key] * 100.0 >= requirement.Value * testsRun))
+                isMet(requirement.Value, _labels[requirement.Key])))
             .ToArray()
             .AsReadOnly();
 

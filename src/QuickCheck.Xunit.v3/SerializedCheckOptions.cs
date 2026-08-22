@@ -30,6 +30,8 @@ internal sealed class SerializedCheckOptions : IXunitSerializable
         info.AddValue("mdr", Options.MaxDiscardRatio);
         info.AddValue("msa", Options.MaxShrinkAttempts);
         info.AddValue("msw", Options.MaxShrinkWork);
+        info.AddValue("cc", Options.CoverageConfidence?.Certainty);
+        info.AddValue("ct", Options.CoverageConfidence?.Tolerance);
     }
 
     // An absent key reads back as null, which a bare GetValue<int> would unbox with an exception, so
@@ -45,7 +47,10 @@ internal sealed class SerializedCheckOptions : IXunitSerializable
             Replay = info.GetValue<string>("replay") is { } replay ? Replay.Parse(replay) : null,
             MaxDiscardRatio = info.GetValue<int?>("mdr") ?? CheckOptions.Default.MaxDiscardRatio,
             MaxShrinkAttempts = info.GetValue<int?>("msa") ?? CheckOptions.Default.MaxShrinkAttempts,
-            MaxShrinkWork = info.GetValue<int?>("msw") ?? CheckOptions.Default.MaxShrinkWork
+            MaxShrinkWork = info.GetValue<int?>("msw") ?? CheckOptions.Default.MaxShrinkWork,
+            CoverageConfidence = info.GetValue<long?>("cc") is { } certainty
+                ? new Confidence { Certainty = certainty, Tolerance = info.GetValue<double?>("ct") ?? Confidence.Default.Tolerance }
+                : null
         };
     }
 }
