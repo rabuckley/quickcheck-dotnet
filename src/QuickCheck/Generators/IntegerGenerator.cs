@@ -49,7 +49,7 @@ internal sealed class IntegerGenerator<T> : Generator<T> where T : IBinaryIntege
     /// distance, so it is read back unsigned rather than through a wider signed type — no such type
     /// can hold every <typeparamref name="T"/>.
     /// </summary>
-    private static bool TryGetDistance(T from, T to, out ulong distance)
+    internal static bool TryGetDistance(T from, T to, out ulong distance)
     {
         var difference = unchecked(to - from);
         var byteCount = difference.GetByteCount();

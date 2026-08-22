@@ -14,8 +14,8 @@ public static partial class Generate
     /// </summary>
     /// <typeparam name="T">The type of value to generate.</typeparam>
     /// <param name="generate">
-    /// The function that produces a value. It must draw all randomness from the source it is given;
-    /// see <see cref="Generator{T}.Generate"/>.
+    /// The function that produces a value. It must draw all randomness from the source it is given
+    /// and may be called concurrently; see <see cref="Generator{T}.Generate"/>.
     /// </param>
     /// <returns>A generator that produces values by calling <paramref name="generate"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="generate"/> is <see langword="null"/>.</exception>
@@ -53,11 +53,19 @@ public static partial class Generate
     /// </summary>
     /// <typeparam name="T">The integer type to generate, whose range must span at most 64 bits.</typeparam>
     /// <returns>A generator that produces values of <typeparamref name="T"/> and shrinks towards zero.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
+    /// <exception cref="NotSupportedException">
     /// The range of <typeparamref name="T"/> spans more than 64 bits.
     /// </exception>
-    public static Generator<T> Integer<T>() where T : IBinaryInteger<T>, IMinMaxValue<T> =>
-        Between(T.MinValue, T.MaxValue);
+    public static Generator<T> Integer<T>() where T : IBinaryInteger<T>, IMinMaxValue<T>
+    {
+        if (!IntegerGenerator<T>.TryGetDistance(T.MinValue, T.MaxValue, out _))
+        {
+            throw new NotSupportedException(
+                $"{typeof(T).Name} spans more than 64 bits; use Between to generate a narrower range.");
+        }
+
+        return Between(T.MinValue, T.MaxValue);
+    }
 
     /// <summary>
     /// Creates a generator for integers within a specified range.
@@ -141,31 +149,17 @@ public static partial class Generate
     /// Creates a generator that picks uniformly from the specified items.
     /// </summary>
     /// <typeparam name="T">The type of the items.</typeparam>
-    /// <param name="items">The items to pick from.</param>
-    /// <returns>
-    /// A generator that produces one of <paramref name="items"/> and shrinks towards the first of
-    /// them.
-    /// </returns>
-    /// <exception cref="ArgumentException"><paramref name="items"/> is empty.</exception>
-    public static Generator<T> Elements<T>(params ReadOnlySpan<T> items)
-    {
-        return items.IsEmpty
-            ? throw new ArgumentException("At least one item is required.", nameof(items))
-            : new ElementsGenerator<T>([.. items]);
-    }
-
-    /// <summary>
-    /// Creates a generator that picks uniformly from the specified items.
-    /// </summary>
-    /// <typeparam name="T">The type of the items.</typeparam>
-    /// <param name="items">The items to pick from.</param>
+    /// <param name="items">
+    /// The items to pick from, as separate arguments or as one sequence. A single <see cref="string"/>
+    /// argument is a sequence of characters.
+    /// </param>
     /// <returns>
     /// A generator that produces one of <paramref name="items"/> and shrinks towards the first of
     /// them.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="items"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException"><paramref name="items"/> is empty.</exception>
-    public static Generator<T> Elements<T>(IEnumerable<T> items)
+    public static Generator<T> Elements<T>(params IEnumerable<T> items)
     {
         ArgumentNullException.ThrowIfNull(items);
 
@@ -190,28 +184,31 @@ public static partial class Generate
     /// Creates a generator that draws from one of the specified generators, chosen uniformly.
     /// </summary>
     /// <typeparam name="T">The type of value to generate.</typeparam>
-    /// <param name="generators">The generators to choose between.</param>
+    /// <param name="generators">
+    /// The generators to choose between, as separate arguments or as one sequence.
+    /// </param>
     /// <returns>
     /// A generator that draws from one of <paramref name="generators"/> and shrinks towards the first
     /// of them.
     /// </returns>
     /// <exception cref="ArgumentNullException">
-    /// An element of <paramref name="generators"/> is <see langword="null"/>.
+    /// <paramref name="generators"/> or an element of it is <see langword="null"/>.
     /// </exception>
     /// <exception cref="ArgumentException"><paramref name="generators"/> is empty.</exception>
-    public static Generator<T> OneOf<T>(params ReadOnlySpan<Generator<T>> generators)
+    public static Generator<T> OneOf<T>(params IEnumerable<Generator<T>> generators)
     {
-        if (generators.IsEmpty)
+        ArgumentNullException.ThrowIfNull(generators);
+
+        var weighted = generators.Select(static generator => (Weight: 1, Generator: generator)).ToArray();
+
+        if (weighted.Length == 0)
         {
             throw new ArgumentException("At least one generator is required.", nameof(generators));
         }
 
-        var weighted = new (int Weight, Generator<T> Generator)[generators.Length];
-
-        for (var i = 0; i < generators.Length; i++)
+        foreach (var (_, generator) in weighted)
         {
-            ArgumentNullException.ThrowIfNull(generators[i], nameof(generators));
-            weighted[i] = (1, generators[i]);
+            ArgumentNullException.ThrowIfNull(generator, nameof(generators));
         }
 
         return new FrequencyGenerator<T>(weighted);
@@ -223,27 +220,32 @@ public static partial class Generate
     /// </summary>
     /// <typeparam name="T">The type of value to generate.</typeparam>
     /// <param name="weightedGenerators">
-    /// The generators to choose between, each paired with its weight.
+    /// The generators to choose between, each paired with its weight, as separate arguments or as one
+    /// sequence.
     /// </param>
     /// <returns>
     /// A generator that draws from one of <paramref name="weightedGenerators"/> and shrinks towards
     /// the first of them.
     /// </returns>
     /// <exception cref="ArgumentNullException">
-    /// A generator in <paramref name="weightedGenerators"/> is <see langword="null"/>.
+    /// <paramref name="weightedGenerators"/> or a generator in it is <see langword="null"/>.
     /// </exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="weightedGenerators"/> is empty, or a weight is less than or equal to zero.
     /// </exception>
     public static Generator<T> Frequency<T>(
-        params ReadOnlySpan<(int Weight, Generator<T> Generator)> weightedGenerators)
+        params IEnumerable<(int Weight, Generator<T> Generator)> weightedGenerators)
     {
-        if (weightedGenerators.IsEmpty)
+        ArgumentNullException.ThrowIfNull(weightedGenerators);
+
+        var weighted = weightedGenerators.ToArray();
+
+        if (weighted.Length == 0)
         {
             throw new ArgumentException("At least one generator is required.", nameof(weightedGenerators));
         }
 
-        foreach (var (weight, generator) in weightedGenerators)
+        foreach (var (weight, generator) in weighted)
         {
             ArgumentNullException.ThrowIfNull(generator, nameof(weightedGenerators));
 
@@ -253,7 +255,7 @@ public static partial class Generate
             }
         }
 
-        return new FrequencyGenerator<T>(weightedGenerators.ToArray());
+        return new FrequencyGenerator<T>(weighted);
     }
 
     /// <summary>

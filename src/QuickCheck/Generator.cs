@@ -20,7 +20,9 @@ public abstract class Generator<T>
     /// must yield an equal value, and all randomness must come from <paramref name="source"/>. Draw
     /// from a nested generator with <see cref="ChoiceSource.Draw{T}"/> rather than calling its
     /// <see cref="Generate"/> method directly, so that the shrinker can see the structure of the
-    /// value.
+    /// value. A generator instance is shared between runs and may be drawn from concurrently, for
+    /// example by test classes running in parallel, so keep per-draw state in locals or on
+    /// <paramref name="source"/> rather than in fields.
     /// </remarks>
     protected internal abstract T Generate(ChoiceSource source);
 

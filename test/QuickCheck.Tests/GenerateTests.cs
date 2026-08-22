@@ -28,8 +28,14 @@ public sealed class GenerateTests
         // Act & Assert
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Between(10, 1));
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Between(Int128.MinValue, Int128.MaxValue));
-        Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Integer<UInt128>());
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Between(BigInteger.Zero, BigInteger.One << 64));
+    }
+
+    [Fact]
+    public void Integer_WithTypeWiderThan64Bits_ShouldThrowNotSupportedException()
+    {
+        // Act & Assert
+        Assert.Throws<NotSupportedException>(() => Generate.Integer<UInt128>());
     }
 
     [Fact]
@@ -118,6 +124,25 @@ public sealed class GenerateTests
         Assert.Equal([Colour.Red, Colour.Green, Colour.Blue], enums.Distinct().Order());
         Assert.Equal([1, 2, 3], oneOf.Distinct().Order());
         Assert.InRange(weighted.Count(static s => s == "rare"), 40, 200);
+    }
+
+    [Fact]
+    public void ChoiceGenerators_WithCollectionArguments_ShouldPickFromTheirItems()
+    {
+        // Arrange
+        var items = new List<string> { "a", "b" };
+        var generators = new List<Generator<int>> { Generate.Constant(1), Generate.Constant(2) };
+        var weighted = new List<(int Weight, Generator<int> Generator)> { (1, Generate.Constant(3)), (1, Generate.Constant(4)) };
+
+        // Act
+        var elements = Generate.Elements(items).Sample(count: 100, seed: 30);
+        var oneOf = Generate.OneOf(generators).Sample(count: 100, seed: 31);
+        var frequency = Generate.Frequency(weighted).Sample(count: 100, seed: 32);
+
+        // Assert
+        Assert.Equal(["a", "b"], elements.Distinct().Order());
+        Assert.Equal([1, 2], oneOf.Distinct().Order());
+        Assert.Equal([3, 4], frequency.Distinct().Order());
     }
 
     [Fact]
