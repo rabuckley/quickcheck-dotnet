@@ -54,6 +54,22 @@ public sealed class ReadmeTests
     }
 
     [Fact]
+    public void Statistics()
+    {
+        var result = Property.ForAll(Generate.Integer<int>().List(), list =>
+        {
+            Property.Classify(list.Count == 0, "empty");
+            Property.Cover(list.Count >= 5, 20, "five or more");
+            Property.Collect("sign of first", list.Count == 0 ? "none" : Math.Sign(list[0]).ToString());
+            Assert.Equal(list, list.AsEnumerable().Reverse().Reverse());
+        }).Check(new CheckOptions { Seed = 1 });
+
+        result.ThrowIfFailed();
+        Assert.Contains("five or more (required 20%)", result.ToString());
+        Assert.Contains("  sign of first:", result.ToString());
+    }
+
+    [Fact]
     public async Task Asynchronous_bodies()
     {
         await Property.ForAll(Generate.String(), async s => Assert.Equal(s, await RoundTripAsync(s))).AssertAsync();

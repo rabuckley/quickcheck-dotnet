@@ -49,6 +49,7 @@ internal sealed class PropertyRunner<T>
         var maxDiscards = checked(options.RunCount * options.MaxDiscardRatio);
         var passed = 0;
         var discards = 0;
+        var statistics = new RunStatistics();
 
         for (var run = 0; passed < options.RunCount; run++)
         {
@@ -63,6 +64,7 @@ internal sealed class PropertyRunner<T>
             {
                 case ExampleStatus.Passed:
                     passed++;
+                    statistics.Merge(example.Statistics!);
                     break;
 
                 case ExampleStatus.Discarded:
@@ -70,7 +72,8 @@ internal sealed class PropertyRunner<T>
 
                     if (discards > maxDiscards)
                     {
-                        return PropertyResult.Exhausted<T>(seed, passed, discards);
+                        return PropertyResult.Exhausted<T>(
+                            seed, passed, discards, statistics.ToPropertyStatistics(passed));
                     }
 
                     break;
@@ -81,12 +84,17 @@ internal sealed class PropertyRunner<T>
                         new Replay(seed, run),
                         passed,
                         discards,
+                        statistics.ToPropertyStatistics(passed),
                         options,
                         cancellationToken).ConfigureAwait(false);
             }
         }
 
-        return PropertyResult.Passed<T>(seed, passed, discards);
+        var snapshot = statistics.ToPropertyStatistics(passed);
+
+        return snapshot.Coverage.All(static requirement => requirement.IsMet)
+            ? PropertyResult.Passed<T>(seed, passed, discards, snapshot)
+            : PropertyResult.InsufficientCoverage<T>(seed, passed, discards, snapshot);
     }
 
     private async ValueTask<PropertyResult<T>> CheckSingleAsync(
@@ -101,6 +109,8 @@ internal sealed class PropertyRunner<T>
         var example = await ExampleRun.ExecuteAsync(source, _generator, _body, cancellationToken)
             .ConfigureAwait(false);
 
+        // A replayed example reports its labels but is never held to a coverage requirement: one
+        // example cannot meet a distribution.
         return example.Status switch
         {
             ExampleStatus.Failed => await FalsifyAsync(
@@ -108,11 +118,20 @@ internal sealed class PropertyRunner<T>
                 replay,
                 testsRun: 0,
                 discards: 0,
+                PropertyStatistics.Empty,
                 options,
                 cancellationToken).ConfigureAwait(false),
-            ExampleStatus.Passed => PropertyResult.Passed<T>(replay.Seed, testsRun: 1, discards: 0),
-            _ => PropertyResult.Exhausted<T>(replay.Seed, testsRun: 0, discards: 1)
+            ExampleStatus.Passed => PropertyResult.Passed<T>(
+                replay.Seed, testsRun: 1, discards: 0, SingleExampleStatistics(example.Statistics!)),
+            _ => PropertyResult.Exhausted<T>(replay.Seed, testsRun: 0, discards: 1, PropertyStatistics.Empty)
         };
+
+        static PropertyStatistics SingleExampleStatistics(ExampleStatistics example)
+        {
+            var statistics = new RunStatistics();
+            statistics.Merge(example);
+            return statistics.ToPropertyStatistics(testsRun: 1);
+        }
     }
 
     private async ValueTask<PropertyResult<T>> FalsifyAsync(
@@ -120,6 +139,7 @@ internal sealed class PropertyRunner<T>
         Replay replay,
         int testsRun,
         int discards,
+        PropertyStatistics statistics,
         CheckOptions options,
         CancellationToken cancellationToken)
     {
@@ -135,6 +155,7 @@ internal sealed class PropertyRunner<T>
             replay,
             outcome.Attempts,
             outcome.Shrinks,
-            outcome.Limit);
+            outcome.Limit,
+            statistics);
     }
 }

@@ -5,20 +5,43 @@ namespace QuickCheck;
 /// </summary>
 internal static class PropertyResult
 {
-    public static PropertyResult<T> Passed<T>(ulong seed, int testsRun, int discards) => new()
+    public static PropertyResult<T> Passed<T>(
+        ulong seed,
+        int testsRun,
+        int discards,
+        PropertyStatistics statistics) => new()
     {
         Outcome = PropertyOutcome.Passed,
         Seed = seed,
         TestsRun = testsRun,
-        Discards = discards
+        Discards = discards,
+        Statistics = statistics
     };
 
-    public static PropertyResult<T> Exhausted<T>(ulong seed, int testsRun, int discards) => new()
+    public static PropertyResult<T> Exhausted<T>(
+        ulong seed,
+        int testsRun,
+        int discards,
+        PropertyStatistics statistics) => new()
     {
         Outcome = PropertyOutcome.Exhausted,
         Seed = seed,
         TestsRun = testsRun,
-        Discards = discards
+        Discards = discards,
+        Statistics = statistics
+    };
+
+    public static PropertyResult<T> InsufficientCoverage<T>(
+        ulong seed,
+        int testsRun,
+        int discards,
+        PropertyStatistics statistics) => new()
+    {
+        Outcome = PropertyOutcome.InsufficientCoverage,
+        Seed = seed,
+        TestsRun = testsRun,
+        Discards = discards,
+        Statistics = statistics
     };
 
     public static PropertyResult<T> Falsified<T>(
@@ -30,12 +53,14 @@ internal static class PropertyResult
         Replay replay,
         int shrinkAttempts,
         int shrinks,
-        ShrinkLimit shrinkLimit) => new()
+        ShrinkLimit shrinkLimit,
+        PropertyStatistics statistics) => new()
     {
         Outcome = PropertyOutcome.Falsified,
         Seed = seed,
         TestsRun = testsRun,
         Discards = discards,
+        Statistics = statistics,
         Original = original,
         Minimal = minimal,
         Replay = replay,

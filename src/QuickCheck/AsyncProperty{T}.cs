@@ -37,8 +37,9 @@ public sealed class AsyncProperty<T>
     /// </param>
     /// <returns>A task that completes when the check has finished.</returns>
     /// <exception cref="PropertyFailedException">
-    /// The property was falsified, or too many examples were discarded. The message reports the
-    /// minimal counterexample and how to replay it.
+    /// The property was falsified, too many examples were discarded, or a coverage requirement was
+    /// not met. The message is the report of the check; a falsified property reports the minimal
+    /// counterexample and how to replay it.
     /// </exception>
     /// <exception cref="OperationCanceledException">
     /// <paramref name="cancellationToken"/> was cancelled.

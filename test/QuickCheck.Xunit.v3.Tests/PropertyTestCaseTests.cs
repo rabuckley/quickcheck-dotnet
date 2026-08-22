@@ -36,6 +36,10 @@ public sealed class PropertyTestCaseTests
         {
             TestContext.Current.CancelCurrentTest();
         }
+
+        public void Classifies(int x) => Property.Classify(x >= 0, "non-negative");
+
+        public void Covers_the_impossible(int x) => Property.Cover(false, 50, "never");
     }
 
     [Fact]
@@ -84,6 +88,38 @@ public sealed class PropertyTestCaseTests
         var passed = Assert.Single(messages.OfType<ITestPassed>());
         Assert.Contains("Passed 37 tests (seed 5).", passed.Output);
         Assert.Equal(37, Samples.Invocations);
+    }
+
+    [Fact]
+    public async Task PropertyTestCase_WithClassifiedExamples_ShouldWriteTheDistributionToTheTestOutput()
+    {
+        // Arrange
+        var attribute = new PropertyAttribute { Seed = 5 };
+
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Classifies), attribute);
+
+        // Assert
+        var passed = Assert.Single(messages.OfType<ITestPassed>());
+        Assert.Contains("Passed 100 tests (seed 5).", passed.Output);
+        Assert.Contains("% non-negative", passed.Output);
+    }
+
+    [Fact]
+    public async Task PropertyTestCase_WithUnmetCoverage_ShouldFailWithTheCoverageReport()
+    {
+        // Arrange
+        var attribute = new PropertyAttribute { Seed = 5 };
+
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Covers_the_impossible), attribute);
+
+        // Assert
+        var failed = Assert.Single(messages.OfType<ITestFailed>());
+        Assert.Equal(typeof(PropertyFailedException).FullName, failed.ExceptionTypes[0]);
+        Assert.Contains("Insufficient coverage after 100 tests (seed 5).", failed.Messages[0]);
+        Assert.Contains("Only 0% never, but required 50%", failed.Messages[0]);
+        Assert.Empty(messages.OfType<ITestPassed>());
     }
 
     [Fact]

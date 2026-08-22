@@ -34,8 +34,9 @@ public sealed class Property<T>
     /// rather than being recorded as a counterexample.
     /// </param>
     /// <exception cref="PropertyFailedException">
-    /// The property was falsified, or too many examples were discarded. The message reports the
-    /// minimal counterexample and how to replay it.
+    /// The property was falsified, too many examples were discarded, or a coverage requirement was
+    /// not met. The message is the report of the check; a falsified property reports the minimal
+    /// counterexample and how to replay it.
     /// </exception>
     /// <exception cref="OperationCanceledException">
     /// <paramref name="cancellationToken"/> was cancelled.

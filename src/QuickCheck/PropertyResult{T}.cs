@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Text;
 
 namespace QuickCheck;
@@ -60,13 +61,21 @@ public sealed class PropertyResult<T>
     /// </summary>
     public ShrinkLimit ShrinkLimit { get; init; }
 
+    /// <summary>
+    /// Gets what the passed examples reported through <see cref="Property.Classify"/>,
+    /// <see cref="Property.Collect"/> and <see cref="Property.Cover"/>: whatever had accumulated by
+    /// the time the check ended, so a falsified or exhausted check carries the statistics of the
+    /// examples that passed before it stopped.
+    /// </summary>
+    public PropertyStatistics Statistics { get; init; } = PropertyStatistics.Empty;
+
     /// <summary>Gets a value indicating whether an example falsified the property.</summary>
     [MemberNotNullWhen(true, nameof(Original), nameof(Minimal), nameof(Replay))]
     public bool IsFalsified => Outcome is PropertyOutcome.Falsified;
 
     /// <summary>
-    /// Throws a <see cref="PropertyFailedException"/> if the property was falsified or the check was
-    /// exhausted.
+    /// Throws a <see cref="PropertyFailedException"/> if the property was falsified, the check was
+    /// exhausted, or a coverage requirement was not met.
     /// </summary>
     /// <exception cref="PropertyFailedException">
     /// <see cref="Outcome"/> is not <see cref="PropertyOutcome.Passed"/>.
@@ -75,7 +84,8 @@ public sealed class PropertyResult<T>
 
     /// <summary>
     /// Throws a <see cref="PropertyFailedException"/> whose report replaces the replay
-    /// instruction, if the property was falsified or the check was exhausted.
+    /// instruction, if the property was falsified, the check was exhausted, or a coverage
+    /// requirement was not met.
     /// </summary>
     /// <param name="replayHint">
     /// The instruction the report gives for reproducing a failure; see
@@ -118,6 +128,28 @@ public sealed class PropertyResult<T>
                 report.Append($"Passed {TestsRun} tests");
                 AppendDiscards(report);
                 report.Append($" (seed {Seed}).");
+                AppendStatistics(report);
+                break;
+
+            case PropertyOutcome.InsufficientCoverage:
+                report.Append($"Insufficient coverage after {TestsRun} tests");
+                AppendDiscards(report);
+                report.Append($" (seed {Seed}).");
+
+                foreach (var requirement in Statistics.Coverage.Where(static requirement => !requirement.IsMet))
+                {
+                    report.AppendLine();
+
+                    report.Append("  Only ")
+                        .Append(FormatPercent(requirement.Count))
+                        .Append("% ")
+                        .Append(requirement.Label)
+                        .Append(", but required ")
+                        .Append(FormatMinimum(requirement.MinimumPercent))
+                        .Append('%');
+                }
+
+                AppendStatistics(report);
                 break;
 
             case PropertyOutcome.Exhausted:
@@ -184,4 +216,55 @@ public sealed class PropertyResult<T>
                 .Append(exception.Message);
         }
     }
+
+    /// <summary>
+    /// Appends one line per label, then each <see cref="Property.Collect"/> table under its name,
+    /// each ordered by count descending and then label ascending.
+    /// </summary>
+    private void AppendStatistics(StringBuilder report)
+    {
+        var requirements = Statistics.Coverage.ToDictionary(
+            static requirement => requirement.Label,
+            static requirement => requirement.MinimumPercent,
+            StringComparer.Ordinal);
+
+        foreach (var (label, count) in InReportOrder(Statistics.Labels))
+        {
+            report.AppendLine();
+            report.Append("  ").Append(FormatPercent(count)).Append("% ").Append(label);
+
+            if (requirements.TryGetValue(label, out var minimumPercent))
+            {
+                report.Append(" (required ").Append(FormatMinimum(minimumPercent)).Append("%)");
+            }
+        }
+
+        foreach (var table in Statistics.Tables.OrderBy(static table => table.Key, StringComparer.Ordinal))
+        {
+            report.AppendLine();
+            report.Append("  ").Append(table.Key).Append(':');
+
+            foreach (var (value, count) in InReportOrder(table.Value))
+            {
+                report.AppendLine();
+                report.Append("    ").Append(FormatPercent(count)).Append("% ").Append(value);
+            }
+        }
+
+        static IEnumerable<KeyValuePair<string, int>> InReportOrder(IReadOnlyDictionary<string, int> counts) =>
+            counts.OrderByDescending(static entry => entry.Value).ThenBy(static entry => entry.Key, StringComparer.Ordinal);
+    }
+
+    // QuickCheck's rule: enough decimals to tell one example from the next, so none up to 100 tests,
+    // one up to 1000, two up to 10000, and so on.
+    private string FormatPercent(int count)
+    {
+        var places = TestsRun == 0 ? 0 : Math.Max(0, (int)Math.Ceiling(Math.Log10(TestsRun) - 2));
+        var percent = TestsRun == 0 ? 0 : count * 100.0 / TestsRun;
+
+        return percent.ToString("F" + places.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatMinimum(double minimumPercent) =>
+        minimumPercent.ToString(CultureInfo.InvariantCulture);
 }

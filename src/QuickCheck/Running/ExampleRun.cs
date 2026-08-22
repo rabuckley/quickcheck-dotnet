@@ -32,15 +32,30 @@ internal static class ExampleRun
             return Run(ExampleStatus.Discarded, default!);
         }
 
+        var statistics = new ExampleStatistics();
+
         try
         {
-            var holds = await body(value).ConfigureAwait(false);
+            bool holds;
+            Property.CurrentStatistics.Value = statistics;
 
-            return Run(holds ? ExampleStatus.Passed : ExampleStatus.Failed, value);
+            try
+            {
+                holds = await body(value).ConfigureAwait(false);
+            }
+            finally
+            {
+                // Belt and braces: an async method restores the caller's execution context on exit,
+                // so the sink cannot leak out of this method; clearing it here only bounds it to the
+                // body call within this method as well.
+                Property.CurrentStatistics.Value = null;
+            }
+
+            return Run(holds ? ExampleStatus.Passed : ExampleStatus.Failed, value, statistics);
         }
         catch (DiscardException)
         {
-            return Run(ExampleStatus.Discarded, value);
+            return Run(ExampleStatus.Discarded, value, statistics);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -48,15 +63,20 @@ internal static class ExampleRun
         }
         catch (Exception exception)
         {
-            return Run(ExampleStatus.Failed, value, exception);
+            return Run(ExampleStatus.Failed, value, statistics, exception);
         }
 
-        ExampleRun<T> Run(ExampleStatus status, T example, Exception? failure = null) => new()
+        ExampleRun<T> Run(
+            ExampleStatus status,
+            T example,
+            ExampleStatistics? bodyStatistics = null,
+            Exception? failure = null) => new()
         {
             Status = status,
             Choices = source.Recorded,
             Spans = source.Spans,
             Value = example,
+            Statistics = bodyStatistics,
             Exception = failure
         };
     }

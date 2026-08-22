@@ -12,5 +12,8 @@ public enum PropertyOutcome
     Falsified,
 
     /// <summary>Too many examples were discarded to reach the required run count.</summary>
-    Exhausted
+    Exhausted,
+
+    /// <summary>Every example passed but a <see cref="Property.Cover"/> requirement was not met.</summary>
+    InsufficientCoverage
 }

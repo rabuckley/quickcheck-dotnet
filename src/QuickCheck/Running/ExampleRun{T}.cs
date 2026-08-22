@@ -22,6 +22,12 @@ internal sealed class ExampleRun<T>
 
     public Exception? Exception { get; init; }
 
+    /// <summary>
+    /// What the body reported through the <see cref="Property"/> statistics statics, or
+    /// <see langword="null"/> when generation discarded the example before the body ran.
+    /// </summary>
+    public ExampleStatistics? Statistics { get; init; }
+
     public FailureKey Key => new(Exception?.GetType());
 
     public bool IsFailure => Status is ExampleStatus.Failed;

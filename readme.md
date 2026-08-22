@@ -123,7 +123,7 @@ Property.ForAll(Generate.String(), s =>
 ```
 
 - `Assert(options)` throws `PropertyFailedException` on failure — use it in tests. The message is the report shown above.
-- `Check(options)` returns a `PropertyResult<T>` with the outcome, seed, counterexamples, and shrink statistics, without throwing.
+- `Check(options)` returns a `PropertyResult<T>` with the outcome, seed, counterexamples, and shrink counts, without throwing.
 - `Property.Assume(condition)` discards the current example when a precondition doesn't hold. Prefer a generator that only produces valid inputs; a property that discards too much is reported as `Exhausted` rather than silently passing on a handful of examples.
 
 `CheckOptions` controls the run: `RunCount` (default 100), `Seed`, `Replay` (re-run one specific failing example), `MaxShrinkAttempts`, `MaxShrinkWork` (the total choices shrinking may replay, which bounds the work one very large counterexample can cost), and `MaxDiscardRatio`. Both `Assert` and `Check` also take a `CancellationToken` after the options; it aborts the check between examples and between shrink attempts, throwing rather than reporting a result. The body is not given the token, so a long-running body runs to completion — but a body that throws `OperationCanceledException` while that token is cancelled aborts the check rather than being recorded as a counterexample.
@@ -135,6 +135,39 @@ await Property.ForAll(Generate.String(), async s => Assert.Equal(s, await RoundT
 ```
 
 Await the result: an `AssertAsync()` left un-awaited in a non-`async` test method compiles without a warning and the test passes whatever the property does.
+
+### Statistics
+
+A property can pass while exercising almost nothing. Four statics, called from the body like `Assume`, report what each example exercised, and the passing report prints the distribution:
+
+- `Property.Classify(condition, label)` counts the example under `label` when `condition` holds; `Property.Label(label)` counts it unconditionally.
+- `Property.Collect(name, value)` counts the example under `value` in the table called `name`. The value is your text, used as the table key and printed as given.
+- `Property.Cover(condition, minimumPercent, label)` counts like `Classify` and fails the check with `InsufficientCoverage` if fewer than `minimumPercent` of the examples hit the label.
+
+```csharp
+Property.ForAll(Generate.Integer<int>().List(), list =>
+{
+    Property.Classify(list.Count == 0, "empty");
+    Property.Cover(list.Count >= 5, 20, "five or more");
+    Property.Collect("sign of first", list.Count == 0 ? "none" : Math.Sign(list[0]).ToString());
+    Assert.Equal(list, list.AsEnumerable().Reverse().Reverse());
+}).Assert();
+```
+
+```
+Passed 100 tests (seed 1).
+  34% five or more (required 20%)
+  19% empty
+  sign of first:
+    43% -1
+    37% 1
+    19% none
+    1% 0
+```
+
+A label counts at most once per example however often the body reports it, and only passed examples count: discarded examples and shrink candidates do not, so percentages are of `TestsRun`. A label whose condition never holds still prints, at 0%. `Check` returns the same numbers as `result.Statistics`.
+
+`Cover` is a floor that catches a distribution far off what you intended, not an assertion about the rate the generator really produces: it is a plain threshold over one seed's `RunCount` examples, so a minimum close to the rate you expect fails on an unlucky seed. State a minimum you would want to be told about falling below, and read the real rate off the report. Call it on every example with the condition as the argument rather than inside an `if`: the percentage is of every passed example, not of the examples that reach the call, so a guarded call under-counts and fails on a requirement you only meant to hold inside the branch.
 
 ### Reproducing failures
 
@@ -188,7 +221,7 @@ Falsified after 12 tests and 34 shrinks (seed 3468194371).
   Replay with: [Property(Replay = "3468194371:11")]
 ```
 
-`[Property]` accepts `RunCount`, `Seed`, `Replay`, `MaxShrinkAttempts`, `MaxShrinkWork`, and `Generators`. A passing property writes `Passed 100 tests (seed …)` to the test output. Requires xunit.v3 4.0.0 or later, on the reflection-based extensibility surface (`xunit.v3.extensibility.core`): generators are derived by reflection, so `[Property]` does not work with `xunit.v3.extensibility.core.aot`, the code-generation surface for native AOT.
+`[Property]` accepts `RunCount`, `Seed`, `Replay`, `MaxShrinkAttempts`, `MaxShrinkWork`, and `Generators`. A passing property writes `Passed 100 tests (seed …)` and any label distribution to the test output. Requires xunit.v3 4.0.0 or later, on the reflection-based extensibility surface (`xunit.v3.extensibility.core`): generators are derived by reflection, so `[Property]` does not work with `xunit.v3.extensibility.core.aot`, the code-generation surface for native AOT.
 
 ## How shrinking works
 
