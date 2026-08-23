@@ -108,10 +108,7 @@ public sealed class ChoiceSource
     /// <exception cref="DiscardException">The example exceeded the maximum number of choices.</exception>
     public ulong NextChoice(ulong maxInclusive, params ReadOnlySpan<ulong> boundaries)
     {
-        if (_recorded.Count >= MaxChoices)
-        {
-            throw new DiscardException("Example exceeded the maximum number of choices.");
-        }
+        ThrowIfFull();
 
         var index = _recorded.Count;
         ulong value;
@@ -129,8 +126,7 @@ public sealed class ChoiceSource
             value = 0;
         }
 
-        _recorded.Add(new Choice(value, maxInclusive));
-        return value;
+        return Record(value, maxInclusive);
     }
 
     /// <summary>
@@ -151,11 +147,7 @@ public sealed class ChoiceSource
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(probabilityOfTrue, 0);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(probabilityOfTrue, 1);
-
-        if (_recorded.Count >= MaxChoices)
-        {
-            throw new DiscardException("Example exceeded the maximum number of choices.");
-        }
+        ThrowIfFull();
 
         var index = _recorded.Count;
         ulong value;
@@ -173,8 +165,21 @@ public sealed class ChoiceSource
             value = 0;
         }
 
-        _recorded.Add(new Choice(value, 1));
-        return value == 1;
+        return Record(value, 1) == 1;
+    }
+
+    private void ThrowIfFull()
+    {
+        if (_recorded.Count >= MaxChoices)
+        {
+            throw new DiscardException("Example exceeded the maximum number of choices.");
+        }
+    }
+
+    private ulong Record(ulong value, ulong maxInclusive)
+    {
+        _recorded.Add(new Choice(value, maxInclusive));
+        return value;
     }
 
     private static ulong Sample(Xoshiro256StarStar random, ulong max, ReadOnlySpan<ulong> boundaries)
