@@ -60,8 +60,15 @@ Generate.Enum<DayOfWeek>()
 Generate.OneOf(genA, genB)          // pick a generator uniformly
 Generate.Frequency((9, common), (1, rare))
 Generate.Tuple(genA, genB)
+Generate.DateTime()                 // mostly 1900-2100, often round times; DateTime(min, max) for a range
+Generate.DateOnly()
+Generate.TimeOnly()
+Generate.DateTimeOffset()           // any whole-minute offset, mostly whole hours
+Generate.TimeSpan()                 // either sign; whole ticks, ms, seconds, minutes, hours or days
 Generate.Guid()
 ```
+
+The factories are named after their types, so in a file with `using static QuickCheck.Generate;` the names `DateTime`, `TimeSpan`, `Guid`, `String` and `Enum` resolve to the factories in expression position: `DateTime.UtcNow` or `Guid.NewGuid()` fail to compile there. Call the factories through `Generate.` instead, or write `System.DateTime.UtcNow` where you need both.
 
 Generators compose. Combinators are extension members on `Generator<T>` which means LINQ query syntax works:
 
@@ -117,6 +124,28 @@ static Generator<Expression> Expressions() => Generate.Frequency(
     (1, Generate.Deferred(() => Generate.Tuple(Expressions(), Expressions()))
             .Select(Expression (pair) => new Add(pair.Item1, pair.Item2))));
 ```
+
+### Dates and times
+
+`DateTime`, `DateTimeOffset`, `DateOnly` and `TimeOnly` are drawn component by component rather than as a uniform tick count, so months, days and hours are uniform and shrinking reads naturally: the year shrinks towards 2000, the other components towards their minimum, and a time drops its detail (ticks, then milliseconds, seconds, minutes) before it shrinks what is left. The year is in 1900 to 2100 three draws in four and anywhere in 1 to 9999 otherwise, and a time is midnight or a whole hour, minute, second or millisecond about four draws in five. The minimal counterexample of `Generate.DateTime()` is `2000-01-01T00:00:00`.
+
+`Generate.DateTime(kind)` gives every value the one `DateTimeKind` (`Unspecified` by default), and `Generate.DateTime(min, max)` takes it from the bounds, which have to agree. So `Generate.DateTime(utcMin, utcMax)` produces UTC values, and a system under test that calls `ToUniversalTime` on them stays inside the window you asked for. For a mix of kinds, draw the kind first:
+
+```csharp
+var anyKind = Generate.Enum<DateTimeKind>().SelectMany(kind => Generate.DateTime(kind));
+```
+
+`Generate.DateTimeOffset(min, max)` compares its bounds as instants and draws the offset independently of them: any whole minute from -14:00 to +14:00 that keeps the local clock time inside `DateTime`'s range, whole hours three draws in four. For a fixed offset, generate the local time and attach it, with bounds, because the full `DateTime` range runs off the end of `DateTimeOffset`'s near the extremes:
+
+```csharp
+var offset = TimeSpan.FromHours(5.5);
+var inIndia = Generate.DateTime(new DateTime(1900, 1, 1), new DateTime(2100, 1, 1))
+    .Select(local => new DateTimeOffset(local, offset));
+```
+
+`Generate.TimeSpan()` picks a unit (ticks, milliseconds, seconds, minutes, hours or days) and then a whole number of it of either sign, small counts most often, so spans of every scale appear and a shrunk span is a round one.
+
+Reports print dates and times in ISO form down to the tick (`2000-01-01T00:00:00.0000001`), since the default `DateTime` and `TimeOnly` formats would hide the fraction.
 
 ### Collection sizes
 

@@ -81,6 +81,27 @@ public sealed class ReadmeTests
     }
 
     [Fact]
+    public void ReadmeSample_WithDateAndTimeRecipes_ShouldMixKindsAndFixTheOffset()
+    {
+        // Arrange
+        var anyKind = Generate.Enum<DateTimeKind>().SelectMany(kind => Generate.DateTime(kind));
+
+        var offset = TimeSpan.FromHours(5.5);
+        var inIndia = Generate.DateTime(new DateTime(1900, 1, 1), new DateTime(2100, 1, 1))
+            .Select(local => new DateTimeOffset(local, offset));
+
+        // Act
+        var kinds = anyKind.Sample(count: 100, seed: 1).Select(static d => d.Kind).Distinct().ToList();
+        var offsets = inIndia.Sample(count: 100, seed: 2);
+        var minimal = Property.ForAll(Generate.DateTime(), static _ => false).Check(new CheckOptions { Seed = 3 }).Minimal!.Value;
+
+        // Assert
+        Assert.Equal(3, kinds.Count);
+        Assert.All(offsets, d => Assert.Equal(offset, d.Offset));
+        Assert.Equal("2000-01-01T00:00:00", ValueFormatter.Format(minimal));
+    }
+
+    [Fact]
     public void ReadmeSample_WithArbitraryOnTheType_ShouldGenerateFromIt()
     {
         // Arrange
