@@ -51,6 +51,25 @@ public static class ValueFormatter
                 builder.Append(flag ? "true" : "false");
                 break;
 
+            // The default formats drop the fraction (DateTime) or everything past the minute (TimeOnly),
+            // which would print a value one tick after midnight as midnight. The F specifiers omit a
+            // zero fraction, so round values stay short.
+            case DateTime dateTime:
+                builder.Append(dateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.FFFFFFFK", CultureInfo.InvariantCulture));
+                break;
+
+            case DateTimeOffset dateTimeOffset:
+                builder.Append(dateTimeOffset.ToString("yyyy-MM-dd'T'HH:mm:ss.FFFFFFFzzz", CultureInfo.InvariantCulture));
+                break;
+
+            case DateOnly date:
+                builder.Append(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                break;
+
+            case TimeOnly time:
+                builder.Append(time.ToString("HH:mm:ss.FFFFFFF", CultureInfo.InvariantCulture));
+                break;
+
             case IFormattable formattable:
                 builder.Append(formattable.ToString(format: null, CultureInfo.InvariantCulture));
                 break;

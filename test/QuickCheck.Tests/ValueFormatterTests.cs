@@ -55,6 +55,25 @@ public sealed class ValueFormatterTests
     }
 
     [Fact]
+    public void Format_WithDateAndTimeValues_ShouldPrintIsoFormWithTicks()
+    {
+        // Arrange
+        var midnight = new DateTime(2000, 1, 1);
+
+        // Act & Assert
+        Assert.Equal("2000-01-01T00:00:00", ValueFormatter.Format(midnight));
+        Assert.Equal("2000-01-01T00:00:00.0000001", ValueFormatter.Format(midnight.AddTicks(1)));
+        Assert.Equal("2000-01-01T00:00:00Z", ValueFormatter.Format(DateTime.SpecifyKind(midnight, DateTimeKind.Utc)));
+        Assert.Equal("2000-01-01T00:00:00+00:00", ValueFormatter.Format(new DateTimeOffset(midnight, TimeSpan.Zero)));
+        Assert.Equal("2000-01-01T00:00:00.5-05:30", ValueFormatter.Format(new DateTimeOffset(midnight.AddMilliseconds(500), new TimeSpan(-5, -30, 0))));
+        Assert.Equal("2000-01-01", ValueFormatter.Format(new DateOnly(2000, 1, 1)));
+        Assert.Equal("13:47:22.5", ValueFormatter.Format(new TimeOnly(13, 47, 22, 500)));
+        Assert.Equal("00:00:00", ValueFormatter.Format(TimeOnly.MinValue));
+        Assert.Equal("00:00:00.0000001", ValueFormatter.Format(TimeSpan.FromTicks(1)));
+        Assert.Equal("00000000-0000-0000-0000-000000000000", ValueFormatter.Format(Guid.Empty));
+    }
+
+    [Fact]
     public void Format_WithHandWrittenToString_ShouldUseIt()
     {
         // Arrange
