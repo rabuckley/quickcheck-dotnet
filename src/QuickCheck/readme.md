@@ -60,6 +60,7 @@ Generate.Enum<DayOfWeek>()
 Generate.OneOf(genA, genB)          // pick a generator uniformly
 Generate.Frequency((9, common), (1, rare))
 Generate.Tuple(genA, genB)
+Generate.Guid()
 ```
 
 Generators compose. Combinators are extension members on `Generator<T>` which means LINQ query syntax works:
