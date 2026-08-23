@@ -6,7 +6,8 @@ namespace QuickCheck.Generators;
 /// Generates dates and times in [min, max] component-wise: year, month and day, then a precision
 /// level and the time components, so that shrinking moves towards midnight on 1 January 2000, or
 /// the nearest the bounds allow, and drops time detail before it shrinks it. Every value takes the
-/// <see cref="DateTimeKind"/> the bounds share.
+/// <see cref="DateTimeKind"/> the bounds share. One draw in sixteen forces a bound through the same
+/// components.
 /// </summary>
 internal sealed class DateTimeGenerator : Generator<DateTime>
 {
@@ -33,6 +34,7 @@ internal sealed class DateTimeGenerator : Generator<DateTime>
 
     protected internal override DateTime Generate(ChoiceSource source)
     {
-        return TimeComponents.DrawDateTime(source, _min, _max);
+        var edge = source.SampleEdge([_min, _max]);
+        return TimeComponents.DrawDateTime(source, _min, _max, edge);
     }
 }

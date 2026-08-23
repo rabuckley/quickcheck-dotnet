@@ -4,7 +4,8 @@ namespace QuickCheck.Generators;
 
 /// <summary>
 /// Generates times of day in [min, max] component-wise, so that shrinking moves towards midnight,
-/// or the nearest the bounds allow, and drops detail before it shrinks it.
+/// or the nearest the bounds allow, and drops detail before it shrinks it. One draw in sixteen
+/// forces a bound through the same components.
 /// </summary>
 internal sealed class TimeOnlyGenerator : Generator<TimeOnly>
 {
@@ -25,6 +26,7 @@ internal sealed class TimeOnlyGenerator : Generator<TimeOnly>
 
     protected internal override TimeOnly Generate(ChoiceSource source)
     {
-        return TimeComponents.DrawTime(source, _min, _max, allowMidnight: false);
+        var edge = source.SampleEdge([_min, _max]);
+        return TimeComponents.DrawTime(source, _min, _max, allowMidnight: false, edge);
     }
 }

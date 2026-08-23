@@ -74,6 +74,64 @@ public sealed class GenerateTimeTests
     }
 
     [Fact]
+    public void TimeGenerators_WithFullRange_ShouldProduceTheBounds()
+    {
+        // Act
+        var dateTimes = Generate.DateTime().Sample(count: 2000, seed: 20);
+        var dates = Generate.DateOnly().Sample(count: 2000, seed: 21);
+        var times = Generate.TimeOnly().Sample(count: 2000, seed: 22);
+        var instants = Generate.DateTimeOffset().Sample(count: 2000, seed: 23);
+
+        // Assert
+        Assert.Contains(DateTime.MinValue, dateTimes);
+        Assert.Contains(DateTime.MaxValue, dateTimes);
+        Assert.Contains(DateOnly.MinValue, dates);
+        Assert.Contains(DateOnly.MaxValue, dates);
+        Assert.Contains(TimeOnly.MinValue, times);
+        Assert.Contains(TimeOnly.MaxValue, times);
+        Assert.Contains(DateTimeOffset.MinValue, instants);
+        Assert.Contains(DateTimeOffset.MaxValue, instants);
+        Assert.All(instants.Where(static d => d.UtcTicks == 0 || d.UtcTicks == DateTime.MaxValue.Ticks), static d => Assert.Equal(TimeSpan.Zero, d.Offset));
+    }
+
+    [Fact]
+    public void DateTime_WithBounds_ShouldProduceBothBounds()
+    {
+        // Arrange
+        var min = new DateTime(2024, 1, 1);
+        var max = new DateTime(2024, 12, 31, 23, 59, 59);
+
+        // Act
+        var year = Generate.DateTime(min, max).Sample(count: 500, seed: 24);
+
+        // Assert
+        Assert.All(year, d => Assert.InRange(d, min, max));
+        Assert.Contains(min, year);
+        Assert.Contains(max, year);
+    }
+
+    [Fact]
+    public void DateTime_WithEdgeExamples_ShouldShrinkLikeAnyOtherExample()
+    {
+        // Arrange
+        var alwaysFalse = Enumerable.Range(1, 64)
+            .Select(seed => Property.ForAll(Generate.DateTime(), static _ => false).Check(new CheckOptions { Seed = (ulong)seed }).Minimal!.Value);
+
+        // Act
+        var notMinValue = Property.ForAll(Generate.DateTime(), static d => d != DateTime.MinValue)
+            .Check(new CheckOptions { Seed = 1, RunCount = 2000 });
+        var firstExample = Generate.DateTime().Sample(count: 1, seed: 82).Single();
+        var pastThreshold = Property.ForAll(Generate.DateTime(), static d => d.Year <= 2000)
+            .Check(new CheckOptions { Seed = 82 });
+
+        // Assert
+        Assert.All(alwaysFalse, static minimal => Assert.Equal(new DateTime(2000, 1, 1), minimal));
+        Assert.Equal(DateTime.MinValue, notMinValue.Minimal!.Value);
+        Assert.Equal(DateTime.MaxValue, firstExample);
+        Assert.Equal(new DateTime(2001, 1, 1), pastThreshold.Minimal!.Value);
+    }
+
+    [Fact]
     public void TimeGenerators_WithInvalidArguments_ShouldThrowArgumentOutOfRangeException()
     {
         // Act & Assert

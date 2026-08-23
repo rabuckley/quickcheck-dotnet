@@ -15,7 +15,9 @@ public static partial class Generate
     /// A generator that produces values of <paramref name="kind"/>, draws the year in 1900..2100
     /// three times in four and anywhere in 1..9999 otherwise, draws the month, day and time
     /// components uniformly, produces a time that is midnight or a whole hour, minute, second or
-    /// millisecond about as often as not, and shrinks towards midnight on 1 January 2000.
+    /// millisecond five times in six, produces <see cref="System.DateTime.MinValue"/> and
+    /// <see cref="System.DateTime.MaxValue"/> more often than chance, and shrinks towards midnight
+    /// on 1 January 2000.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="kind"/> is not a defined <see cref="DateTimeKind"/>.
@@ -49,8 +51,8 @@ public static partial class Generate
     /// <returns>
     /// A generator that produces values from <paramref name="min"/> to <paramref name="max"/> of the
     /// bounds' <c>Kind</c>, distributed as <see cref="DateTime(DateTimeKind)"/> within the range,
-    /// and shrinks towards midnight on 1 January 2000, or towards the simplest value the bounds
-    /// allow when the range excludes it.
+    /// produces the bounds more often than chance, and shrinks towards midnight on 1 January 2000,
+    /// or towards the simplest value the bounds allow when the range excludes it.
     /// </returns>
     /// <exception cref="ArgumentException">
     /// <paramref name="min"/> and <paramref name="max"/> have different <c>Kind</c>s.
@@ -68,8 +70,9 @@ public static partial class Generate
     /// <returns>
     /// A generator that draws the offset as any whole minute in −14:00..+14:00 that keeps the local
     /// clock time within <see cref="System.DateTime"/>'s range, whole hours three times in four,
-    /// then a local date and time distributed as <see cref="DateTime(DateTimeKind)"/>, and shrinks
-    /// towards midnight on 1 January 2000 UTC.
+    /// then a local date and time distributed as <see cref="DateTime(DateTimeKind)"/>, produces
+    /// <see cref="System.DateTimeOffset.MinValue"/> and <see cref="System.DateTimeOffset.MaxValue"/>
+    /// more often than chance, and shrinks towards midnight on 1 January 2000 UTC.
     /// </returns>
     /// <remarks>
     /// For a fixed offset, generate a <see cref="System.DateTime"/> and attach it:
@@ -87,8 +90,9 @@ public static partial class Generate
     /// <returns>
     /// A generator that produces instants from <paramref name="min"/> to <paramref name="max"/>,
     /// compared as instants, with an offset drawn independently of the bounds' offsets as
-    /// <see cref="DateTimeOffset()"/> does, and shrinks towards midnight on 1 January 2000 UTC, or
-    /// towards the simplest value the bounds allow when the range excludes it.
+    /// <see cref="DateTimeOffset()"/> does, produces the bounds, at offset zero, more often than
+    /// chance, and shrinks towards midnight on 1 January 2000 UTC, or towards the simplest value the
+    /// bounds allow when the range excludes it.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="min"/> is a later instant than <paramref name="max"/>.
@@ -101,7 +105,9 @@ public static partial class Generate
     /// </summary>
     /// <returns>
     /// A generator that draws the year in 1900..2100 three times in four and anywhere in 1..9999
-    /// otherwise, draws the month and day uniformly, and shrinks towards 1 January 2000.
+    /// otherwise, draws the month and day uniformly, produces <see cref="System.DateOnly.MinValue"/>
+    /// and <see cref="System.DateOnly.MaxValue"/> more often than chance, and shrinks towards
+    /// 1 January 2000.
     /// </returns>
     public static Generator<System.DateOnly> DateOnly() =>
         DateOnly(System.DateOnly.MinValue, System.DateOnly.MaxValue);
@@ -113,8 +119,9 @@ public static partial class Generate
     /// <param name="max">The inclusive upper bound of the dates to generate.</param>
     /// <returns>
     /// A generator that produces dates from <paramref name="min"/> to <paramref name="max"/>,
-    /// distributed as <see cref="DateOnly()"/> within the range, and shrinks towards 1 January
-    /// 2000, or towards the simplest date the bounds allow when the range excludes it.
+    /// distributed as <see cref="DateOnly()"/> within the range, produces the bounds more often than
+    /// chance, and shrinks towards 1 January 2000, or towards the simplest date the bounds allow
+    /// when the range excludes it.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="min"/> is greater than <paramref name="max"/>.
@@ -127,8 +134,9 @@ public static partial class Generate
     /// </summary>
     /// <returns>
     /// A generator that draws the hour, minute, second, millisecond and remaining ticks uniformly,
-    /// produces a whole hour, minute, second or millisecond about as often as not, and shrinks
-    /// towards midnight.
+    /// produces a whole hour, minute, second or millisecond four times in five, produces
+    /// <see cref="System.TimeOnly.MinValue"/> and <see cref="System.TimeOnly.MaxValue"/> more often
+    /// than chance, and shrinks towards midnight.
     /// </returns>
     /// <remarks>
     /// Shrinking minimises the more significant components first, so a failure that depends on a
@@ -144,8 +152,9 @@ public static partial class Generate
     /// <param name="max">The inclusive upper bound of the times to generate, not before <paramref name="min"/>.</param>
     /// <returns>
     /// A generator that produces times from <paramref name="min"/> to <paramref name="max"/>,
-    /// distributed as <see cref="TimeOnly()"/> within the range, and shrinks towards midnight, or
-    /// towards the simplest time the bounds allow when the range excludes it.
+    /// distributed as <see cref="TimeOnly()"/> within the range, produces the bounds more often than
+    /// chance, and shrinks towards midnight, or towards the simplest time the bounds allow when the
+    /// range excludes it.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="min"/> is greater than <paramref name="max"/>. The range does not wrap past
@@ -162,6 +171,12 @@ public static partial class Generate
     /// and days, then a whole number of that unit of either sign biased towards small counts and
     /// the extremes, and shrinks towards <see cref="System.TimeSpan.Zero"/>.
     /// </returns>
+    /// <remarks>
+    /// Sentinels are not forced boundaries: <see cref="Timeout.InfiniteTimeSpan"/> (−1 millisecond)
+    /// appears as a small count of the millisecond unit, at roughly one draw in 700. A property
+    /// that hinges on it should raise the rate itself:
+    /// <c>Generate.Frequency((15, Generate.TimeSpan()), (1, Generate.Constant(Timeout.InfiniteTimeSpan)))</c>.
+    /// </remarks>
     public static Generator<System.TimeSpan> TimeSpan() =>
         TimeSpan(System.TimeSpan.MinValue, System.TimeSpan.MaxValue);
 

@@ -4,7 +4,7 @@ namespace QuickCheck.Generators;
 
 /// <summary>
 /// Generates dates in [min, max] component-wise, so that shrinking moves towards 1 January 2000,
-/// or the nearest the bounds allow.
+/// or the nearest the bounds allow. One draw in sixteen forces a bound through the same components.
 /// </summary>
 internal sealed class DateOnlyGenerator : Generator<DateOnly>
 {
@@ -25,6 +25,7 @@ internal sealed class DateOnlyGenerator : Generator<DateOnly>
 
     protected internal override DateOnly Generate(ChoiceSource source)
     {
-        return TimeComponents.DrawDate(source, _min, _max);
+        var edge = source.SampleEdge([_min, _max]);
+        return TimeComponents.DrawDate(source, _min, _max, edge);
     }
 }

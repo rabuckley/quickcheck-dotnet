@@ -60,10 +60,10 @@ Generate.Enum<DayOfWeek>()
 Generate.OneOf(genA, genB)          // pick a generator uniformly
 Generate.Frequency((9, common), (1, rare))
 Generate.Tuple(genA, genB)
-Generate.DateTime()                 // mostly 1900-2100, often round times; DateTime(min, max) for a range
-Generate.DateOnly()
-Generate.TimeOnly()
-Generate.DateTimeOffset()           // any whole-minute offset, mostly whole hours
+Generate.DateTime()                 // mostly 1900-2100, often round times, sometimes the bounds; DateTime(min, max) for a range
+Generate.DateOnly()                 // mostly 1900-2100, sometimes the bounds
+Generate.TimeOnly()                 // often round, sometimes the bounds
+Generate.DateTimeOffset()           // any whole-minute offset, mostly whole hours; sometimes the bounds, at +00:00
 Generate.TimeSpan()                 // either sign; whole ticks, ms, seconds, minutes, hours or days
 Generate.Guid()
 ```
@@ -129,6 +129,8 @@ static Generator<Expression> Expressions() => Generate.Frequency(
 
 `DateTime`, `DateTimeOffset`, `DateOnly` and `TimeOnly` are drawn component by component rather than as a uniform tick count, so months, days and hours are uniform and shrinking reads naturally: the year shrinks towards 2000, the other components towards their minimum, and a time drops its detail (ticks, then milliseconds, seconds, minutes) before it shrinks what is left. The year is in 1900 to 2100 three draws in four and anywhere in 1 to 9999 otherwise, and a time is midnight or a whole hour, minute, second or millisecond about four draws in five. The minimal counterexample of `Generate.DateTime()` is `2000-01-01T00:00:00`.
 
+Drawing each component on its own means a particular value such as the upper bound almost never appears by chance, so one draw in sixteen is forced to the range's lower or upper bound instead (`DateTimeOffset` takes its bounds at `+00:00`). A forced bound goes through the same components as any other value, so it shrinks the same way, and an off-by-one at `max` fails within a few dozen examples rather than never.
+
 `Generate.DateTime(kind)` gives every value the one `DateTimeKind` (`Unspecified` by default), and `Generate.DateTime(min, max)` takes it from the bounds, which have to agree. So `Generate.DateTime(utcMin, utcMax)` produces UTC values, and a system under test that calls `ToUniversalTime` on them stays inside the window you asked for. For a mix of kinds, draw the kind first:
 
 ```csharp
@@ -146,6 +148,18 @@ var inIndia = Generate.DateTime(new DateTime(1900, 1, 1), new DateTime(2100, 1, 
 `Generate.TimeSpan()` picks a unit (ticks, milliseconds, seconds, minutes, hours or days) and then a whole number of it of either sign, small counts most often, so spans of every scale appear and a shrunk span is a round one.
 
 Reports print dates and times in ISO form down to the tick (`2000-01-01T00:00:00.0000001`), since the default `DateTime` and `TimeOnly` formats would hide the fraction.
+
+### Edge values
+
+A generator forces only the values it can derive from its bounds and its type: the ends of the range, the type's `MinValue` and `MaxValue`, zero or the shrink target, and the ends of each component's natural range. It never forces a value because code is known to get it wrong, such as a date that breaks hand-rolled leap-year code or an epoch some code treats as unset, so each generator's doc comment can name everything it forces. Values that matter to your domain are yours to add, and `Generate.Frequency` is the way:
+
+```csharp
+var timestamps = Generate.Frequency(
+    (15, Generate.DateTime()),
+    (1, Generate.Constant(DateTime.UnixEpoch)));
+```
+
+A failure found through the constant branch minimises to that constant rather than to a component-shrunk value, which for a probe is usually the answer you wanted.
 
 ### Collection sizes
 

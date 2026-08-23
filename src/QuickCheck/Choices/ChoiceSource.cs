@@ -130,6 +130,43 @@ public sealed class ChoiceSource
     }
 
     /// <summary>
+    /// One call in sixteen while generating (the same rate as integer boundaries) returns one of
+    /// <paramref name="edges"/> uniformly; otherwise, and always during replay, returns
+    /// <see langword="null"/>. Consumes no choice, so a generator that forces the edge through
+    /// <see cref="ForceChoice"/> leaves an ordinary choice sequence behind. Edges are the range's
+    /// bounds and the type's own special values, never a value chosen because code is known to get
+    /// it wrong.
+    /// </summary>
+    internal T? SampleEdge<T>(ReadOnlySpan<T> edges) where T : struct =>
+        _random is not null && _random.NextDouble() < BoundaryProbability
+            ? edges[(int)_random.NextUInt64Inclusive((ulong)(edges.Length - 1))]
+            : null;
+
+    /// <summary>
+    /// While generating, records <paramref name="value"/> (which must not exceed
+    /// <paramref name="maxInclusive"/>) in place of a sampled choice; while replaying, replays the
+    /// prefix or pads with 0 exactly as <see cref="NextChoice"/> does. Lets a generator emit a chosen
+    /// value through its normal choice layout, so the value shrinks like any other.
+    /// </summary>
+    internal ulong ForceChoice(ulong value, ulong maxInclusive)
+    {
+        ThrowIfFull();
+
+        var index = _recorded.Count;
+
+        if (_prefix is not null && index < _prefix.Count)
+        {
+            value = Math.Min(_prefix[index].Value, maxInclusive);
+        }
+        else if (_random is null)
+        {
+            value = 0;
+        }
+
+        return Record(value, maxInclusive);
+    }
+
+    /// <summary>
     /// Draws a boolean that is <see langword="true"/> with a given probability during generation.
     /// </summary>
     /// <param name="probabilityOfTrue">

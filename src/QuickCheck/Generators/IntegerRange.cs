@@ -11,6 +11,8 @@ namespace QuickCheck.Generators;
 /// </summary>
 internal readonly struct IntegerRange<T> where T : IBinaryInteger<T>
 {
+    private readonly T _min;
+    private readonly T _max;
     private readonly T _target;
     private readonly ulong _below;
     private readonly ulong _above;
@@ -32,6 +34,8 @@ internal readonly struct IntegerRange<T> where T : IBinaryInteger<T>
                 nameof(max), "The range [min, max] must span at most 64 bits.");
         }
 
+        _min = min;
+        _max = max;
         _target = T.Clamp(T.Zero, min, max);
 
         // Both distances are within the span, which has just been checked.
@@ -44,6 +48,33 @@ internal readonly struct IntegerRange<T> where T : IBinaryInteger<T>
 
     public T Draw(ChoiceSource source) =>
         FromChoice(source.NextChoice(_maxChoice, _minChoice, _maxBoundChoice));
+
+    /// <summary>
+    /// Emits <paramref name="value"/> through the range's choice layout while generating, so that
+    /// it shrinks like a drawn value; while replaying, returns the replayed value instead.
+    /// <paramref name="value"/> is clamped into the range, so a caller that computed it against
+    /// bounds that a replayed earlier choice has since moved still makes a valid request.
+    /// </summary>
+    public T Force(ChoiceSource source, T value) =>
+        FromChoice(source.ForceChoice(ToChoice(value), _maxChoice));
+
+    /// <summary>
+    /// The choice that <see cref="FromChoice"/> maps to <paramref name="value"/>, clamped into the
+    /// range.
+    /// </summary>
+    public ulong ToChoice(T value)
+    {
+        value = T.Clamp(value, _min, _max);
+
+        if (value >= _target)
+        {
+            TryGetDistance(_target, value, out var up);
+            return ToChoice(up, above: true);
+        }
+
+        TryGetDistance(value, _target, out var down);
+        return ToChoice(down, above: false);
+    }
 
     /// <summary>
     /// The distance from <paramref name="from"/> up to <paramref name="to"/>, which must not be
