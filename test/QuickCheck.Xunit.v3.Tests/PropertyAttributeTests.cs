@@ -48,6 +48,14 @@ public sealed class PropertyAttributeTests(ITestOutputHelper output)
     }
 
     [Property]
+    public void Property_WithDateTimeAndGuidParameters_ShouldGenerateThemByDefault(
+        DateTime moment, DateTimeOffset instant, DateOnly date, TimeOnly time, TimeSpan span, Guid? id)
+    {
+        _ = (instant, date, time, span, id);
+        Assert.Equal(DateTimeKind.Unspecified, moment.Kind);
+    }
+
+    [Property]
     public void Property_WithRecursiveRecord_ShouldTerminate(Node node)
     {
         // Arrange

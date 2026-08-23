@@ -108,6 +108,8 @@ public sealed class GeneratorResolverTests
         public void Counted(int x) => _ = x;
         public void Named_private([Generator("Helper")] int x) => _ = x;
         public void Stocked(IStock stock) => _ = stock;
+        public void Temporal(DateTime moment, DateTimeOffset instant, DateOnly date, TimeOnly time, TimeSpan span, Guid id, DateTime? maybe) =>
+            _ = (moment, instant, date, time, span, id, maybe);
         public static Generator<string> Text => Generate.Constant("test class");
         public static Generator<int> Big => Generate.Between(1000, 1099);
     }
@@ -145,6 +147,27 @@ public sealed class GeneratorResolverTests
         Assert.Contains(customers, static c => c.Work is not null);
         Assert.Contains(customers, static c => c.Home.Flat is null);
         Assert.Contains(customers, static c => c.Previous.Count > 1);
+    }
+
+    [Fact]
+    public void GeneratorResolver_WithDateTimeAndGuidParameters_ShouldUseTheBuiltInGenerators()
+    {
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Temporal));
+
+        // Act
+        var samples = arguments.Sample(count: 100, seed: 5);
+
+        // Assert
+        Assert.All(samples, static a => Assert.IsType<DateTime>(a.Values[0]));
+        Assert.All(samples, static a => Assert.IsType<DateTimeOffset>(a.Values[1]));
+        Assert.All(samples, static a => Assert.IsType<DateOnly>(a.Values[2]));
+        Assert.All(samples, static a => Assert.IsType<TimeOnly>(a.Values[3]));
+        Assert.All(samples, static a => Assert.IsType<TimeSpan>(a.Values[4]));
+        Assert.All(samples, static a => Assert.IsType<Guid>(a.Values[5]));
+        Assert.Contains(samples, static a => a.Values[6] is null);
+        Assert.Contains(samples, static a => a.Values[6] is DateTime);
+        Assert.Equal(100, samples.Select(static a => (Guid)a.Values[5]!).Distinct().Count());
     }
 
     [Fact]

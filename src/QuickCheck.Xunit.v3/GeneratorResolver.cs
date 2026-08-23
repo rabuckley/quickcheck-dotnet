@@ -238,6 +238,36 @@ internal sealed class GeneratorResolver
             return GeneratorReflection.Enum(type);
         }
 
+        if (type == typeof(DateTime))
+        {
+            return Generate.DateTime();
+        }
+
+        if (type == typeof(DateTimeOffset))
+        {
+            return Generate.DateTimeOffset();
+        }
+
+        if (type == typeof(DateOnly))
+        {
+            return Generate.DateOnly();
+        }
+
+        if (type == typeof(TimeOnly))
+        {
+            return Generate.TimeOnly();
+        }
+
+        if (type == typeof(TimeSpan))
+        {
+            return Generate.TimeSpan();
+        }
+
+        if (type == typeof(Guid))
+        {
+            return Generate.Guid();
+        }
+
         if (type == typeof(sbyte) || type == typeof(byte) || type == typeof(short) || type == typeof(ushort)
             || type == typeof(int) || type == typeof(uint) || type == typeof(long) || type == typeof(ulong)
             || type == typeof(nint) || type == typeof(nuint))

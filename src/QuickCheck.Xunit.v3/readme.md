@@ -49,7 +49,7 @@ A parameter's generator is found, in order, from:
 1. `[Generator(nameof(Member))]` on the parameter: a static `Generator<T>` property, field, or parameterless method on the test class (or on the attribute's `Generators` type, or on an explicit `[Generator(typeof(Source), "Member")]`). It applies to a record's positional parameters too, so a nested member can name its own generator.
 2. A **public** static `Generator<T>` member of the attribute's `Generators` type, matched by type. This also applies to nested members of records.
 3. The type's `IArbitrary<T>` implementation.
-4. Built-ins: integers, `bool`, `char`, `string`, enums, `Nullable<T>`, arrays, `List<T>` and its interfaces, tuples, and any type with a single public constructor (records included), derived recursively. Nullable annotations add `null` examples.
+4. Built-ins: integers, `bool`, `char`, `string`, enums, `DateTime`, `DateTimeOffset`, `DateOnly`, `TimeOnly`, `TimeSpan`, `Guid`, `Nullable<T>`, arrays, `List<T>` and its interfaces, tuples, and any type with a single public constructor (records included), derived recursively. Nullable annotations add `null` examples.
 
 ```csharp
 public sealed class AccountTests
