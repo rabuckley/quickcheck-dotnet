@@ -63,7 +63,7 @@ Generate.Tuple(genA, genB)
 Generate.DateTime()                 // mostly 1900-2100, often round times, sometimes the bounds; DateTime(min, max) for a range
 Generate.DateOnly()                 // mostly 1900-2100, sometimes the bounds
 Generate.TimeOnly()                 // often round, sometimes the bounds
-Generate.DateTimeOffset()           // any whole-minute offset, mostly whole hours; sometimes the bounds, at +00:00
+Generate.DateTimeOffset()           // any whole-minute offset, mostly whole hours; sometimes the bounds verbatim
 Generate.TimeSpan()                 // either sign; whole ticks, ms, seconds, minutes, hours or days
 Generate.Guid()
 ```
@@ -129,7 +129,7 @@ static Generator<Expression> Expressions() => Generate.Frequency(
 
 `DateTime`, `DateTimeOffset`, `DateOnly` and `TimeOnly` are drawn component by component rather than as a uniform tick count, so months, days and hours are uniform and shrinking reads naturally: the year shrinks towards 2000, the other components towards their minimum, and a time drops its detail (ticks, then milliseconds, seconds, minutes) before it shrinks what is left. The year is in 1900 to 2100 three draws in four and anywhere in 1 to 9999 otherwise, and a time is midnight or a whole hour, minute, second or millisecond about four draws in five. The minimal counterexample of `Generate.DateTime()` is `2000-01-01T00:00:00`.
 
-Drawing each component on its own means a particular value such as the upper bound almost never appears by chance, so one draw in sixteen is forced to the range's lower or upper bound instead (`DateTimeOffset` takes its bounds at `+00:00`). A forced bound goes through the same components as any other value, so it shrinks the same way, and an off-by-one at `max` fails within a few dozen examples rather than never.
+Drawing each component on its own means a particular value such as the upper bound almost never appears by chance, so one draw in sixteen is forced to the range's lower or upper bound instead (`DateTimeOffset` forces its bounds verbatim, so a bound written at `+05:30` appears at `+05:30`). A forced bound goes through the same components as any other value, so it shrinks the same way, and an off-by-one at `max` fails within a few dozen examples rather than never.
 
 `Generate.DateTime(kind)` gives every value the one `DateTimeKind` (`Unspecified` by default), and `Generate.DateTime(min, max)` takes it from the bounds, which have to agree. So `Generate.DateTime(utcMin, utcMax)` produces UTC values, and a system under test that calls `ToUniversalTime` on them stays inside the window you asked for. For a mix of kinds, draw the kind first:
 

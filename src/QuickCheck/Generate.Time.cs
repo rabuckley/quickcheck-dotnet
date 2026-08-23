@@ -90,7 +90,7 @@ public static partial class Generate
     /// <returns>
     /// A generator that produces instants from <paramref name="min"/> to <paramref name="max"/>,
     /// compared as instants, with an offset drawn independently of the bounds' offsets as
-    /// <see cref="DateTimeOffset()"/> does, produces the bounds, at offset zero, more often than
+    /// <see cref="DateTimeOffset()"/> does, produces the bounds, exactly as given, more often than
     /// chance, and shrinks towards midnight on 1 January 2000 UTC, or towards the simplest value the
     /// bounds allow when the range excludes it.
     /// </returns>

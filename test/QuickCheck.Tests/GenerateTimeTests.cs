@@ -242,6 +242,27 @@ public sealed class GenerateTimeTests
     }
 
     [Fact]
+    public void DateTimeOffset_WithBoundsAtAnOffset_ShouldProduceTheBoundsVerbatimAndVaryOtherOffsets()
+    {
+        // Arrange
+        var offset = TimeSpan.FromHours(5.5);
+        var min = new DateTimeOffset(2024, 1, 1, 0, 0, 0, offset);
+        var max = new DateTimeOffset(2024, 12, 31, 0, 0, 0, offset);
+        var westMin = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.FromHours(-9.5));
+
+        // Act
+        var samples = Generate.DateTimeOffset(min, max).Sample(count: 500, seed: 32);
+        var west = Generate.DateTimeOffset(westMin, max).Sample(count: 500, seed: 33);
+
+        // Assert
+        Assert.All(samples, d => Assert.InRange(d.UtcTicks, min.UtcTicks, max.UtcTicks));
+        Assert.Contains(samples, d => d.EqualsExact(min));
+        Assert.Contains(samples, d => d.EqualsExact(max));
+        Assert.Contains(samples, d => d.Offset != offset);
+        Assert.Contains(west, d => d.EqualsExact(westMin));
+    }
+
+    [Fact]
     public void TimeSpan_WithFullRange_ShouldProduceRoundSpansOfBothSignsAndTheExtremes()
     {
         // Act
