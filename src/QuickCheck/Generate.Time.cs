@@ -74,11 +74,6 @@ public static partial class Generate
     /// <see cref="System.DateTimeOffset.MinValue"/> and <see cref="System.DateTimeOffset.MaxValue"/>
     /// more often than chance, and shrinks towards midnight on 1 January 2000 UTC.
     /// </returns>
-    /// <remarks>
-    /// For a fixed offset, generate a <see cref="System.DateTime"/> and attach it:
-    /// <c>Generate.DateTime(min, max).Select(d =&gt; new DateTimeOffset(d, offset))</c>, with bounds
-    /// that keep the instant in range.
-    /// </remarks>
     public static Generator<System.DateTimeOffset> DateTimeOffset() =>
         DateTimeOffset(System.DateTimeOffset.MinValue, System.DateTimeOffset.MaxValue);
 
@@ -97,8 +92,65 @@ public static partial class Generate
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="min"/> is a later instant than <paramref name="max"/>.
     /// </exception>
+    /// <remarks>
+    /// The bounds' offsets locate the ends of the range; they do not fix the offsets of the values,
+    /// which vary from draw to draw. To keep every value at one offset, pass it explicitly:
+    /// <c>Generate.DateTimeOffset(min, max, min.Offset)</c>.
+    /// </remarks>
     public static Generator<System.DateTimeOffset> DateTimeOffset(System.DateTimeOffset min, System.DateTimeOffset max) =>
         new DateTimeOffsetGenerator(min, max);
+
+    /// <summary>
+    /// Creates a generator for instants at a fixed offset.
+    /// </summary>
+    /// <param name="offset">The offset from UTC of every value, as a whole number of minutes from −14:00 to +14:00.</param>
+    /// <returns>
+    /// A generator that produces every instant <paramref name="offset"/> can represent, distributed
+    /// as <see cref="DateTime(DateTimeKind)"/> over the local clock time, produces the ends of that
+    /// window more often than chance, and shrinks towards midnight on 1 January 2000 at
+    /// <paramref name="offset"/>.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="offset"/> is not a whole number of minutes from −14:00 to +14:00.
+    /// </exception>
+    /// <remarks>
+    /// An offset trims whichever end of <see cref="System.DateTimeOffset"/>'s range would push the
+    /// local clock time past <see cref="System.DateTime"/>'s, so the window is up to 14 hours short
+    /// of the full range at one end.
+    /// </remarks>
+    public static Generator<System.DateTimeOffset> DateTimeOffset(System.TimeSpan offset) =>
+        DateTimeOffset(System.DateTimeOffset.MinValue, System.DateTimeOffset.MaxValue, offset);
+
+    /// <summary>
+    /// Creates a generator for instants at a fixed offset within a specified range.
+    /// </summary>
+    /// <param name="min">The inclusive lower bound of the instants to generate.</param>
+    /// <param name="max">The inclusive upper bound of the instants to generate.</param>
+    /// <param name="offset">The offset from UTC of every value, as a whole number of minutes from −14:00 to +14:00.</param>
+    /// <returns>
+    /// A generator that produces the instants from <paramref name="min"/> to <paramref name="max"/>,
+    /// compared as instants, that <paramref name="offset"/> can represent, distributed as
+    /// <see cref="DateTime(DateTimeKind)"/> over the local clock time, produces the ends of that
+    /// window more often than chance, and shrinks towards midnight on 1 January 2000 at
+    /// <paramref name="offset"/>, or towards the simplest value the window allows when it excludes it.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="min"/> is a later instant than <paramref name="max"/>, <paramref name="offset"/>
+    /// is not a whole number of minutes from −14:00 to +14:00, or no instant in the range is
+    /// representable at <paramref name="offset"/>.
+    /// </exception>
+    /// <remarks>
+    /// <paramref name="min"/> and <paramref name="max"/> are reachable only where
+    /// <paramref name="offset"/> keeps the local clock time inside <see cref="System.DateTime"/>'s
+    /// range, so a bound nearer <see cref="System.DateTimeOffset.MinValue"/> or
+    /// <see cref="System.DateTimeOffset.MaxValue"/> than <paramref name="offset"/> can represent is
+    /// trimmed to the nearest instant that it can, and never appears.
+    /// </remarks>
+    public static Generator<System.DateTimeOffset> DateTimeOffset(
+        System.DateTimeOffset min,
+        System.DateTimeOffset max,
+        System.TimeSpan offset) =>
+        new FixedOffsetGenerator(min, max, offset);
 
     /// <summary>
     /// Creates a generator for dates over the full range of <see cref="System.DateOnly"/>.

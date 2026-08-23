@@ -86,9 +86,7 @@ public sealed class ReadmeTests
         // Arrange
         var anyKind = Generate.Enum<DateTimeKind>().SelectMany(kind => Generate.DateTime(kind));
 
-        var offset = TimeSpan.FromHours(5.5);
-        var inIndia = Generate.DateTime(new DateTime(1900, 1, 1), new DateTime(2100, 1, 1))
-            .Select(local => new DateTimeOffset(local, offset));
+        var inIndia = Generate.DateTimeOffset(TimeSpan.FromHours(5.5));
 
         // Act
         var kinds = anyKind.Sample(count: 100, seed: 1).Select(static d => d.Kind).Distinct().ToList();
@@ -97,7 +95,7 @@ public sealed class ReadmeTests
 
         // Assert
         Assert.Equal(3, kinds.Count);
-        Assert.All(offsets, d => Assert.Equal(offset, d.Offset));
+        Assert.All(offsets, static d => Assert.Equal(TimeSpan.FromHours(5.5), d.Offset));
         Assert.Equal("2000-01-01T00:00:00", ValueFormatter.Format(minimal));
     }
 

@@ -138,6 +138,10 @@ public sealed class GenerateTimeTests
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.DateTime(new DateTime(2001, 1, 1), new DateTime(2000, 1, 1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.DateTime((DateTimeKind)7));
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.DateTimeOffset(DateTimeOffset.MaxValue, DateTimeOffset.MinValue));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Generate.DateTimeOffset(TimeSpan.FromSeconds(90)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Generate.DateTimeOffset(TimeSpan.FromHours(15)));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => Generate.DateTimeOffset(DateTimeOffset.MaxValue, DateTimeOffset.MaxValue, TimeSpan.FromHours(1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.DateOnly(new DateOnly(2001, 1, 1), new DateOnly(2000, 1, 1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.TimeOnly(new TimeOnly(11, 0), new TimeOnly(10, 30)));
         Assert.Throws<ArgumentOutOfRangeException>(() => Generate.TimeSpan(TimeSpan.FromHours(1), TimeSpan.FromSeconds(1)));
@@ -260,6 +264,29 @@ public sealed class GenerateTimeTests
         Assert.Contains(samples, d => d.EqualsExact(max));
         Assert.Contains(samples, d => d.Offset != offset);
         Assert.Contains(west, d => d.EqualsExact(westMin));
+    }
+
+    [Fact]
+    public void DateTimeOffset_WithAFixedOffset_ShouldTrimTheRangeToWhatThatOffsetRepresents()
+    {
+        // Arrange
+        var offset = TimeSpan.FromHours(5.5);
+        var min = new DateTimeOffset(2024, 1, 1, 0, 0, 0, offset);
+        var max = new DateTimeOffset(2024, 12, 31, 0, 0, 0, offset);
+
+        // Act
+        var full = Generate.DateTimeOffset(offset).Sample(count: 500, seed: 30);
+        var bounded = Generate.DateTimeOffset(min, max, offset).Sample(count: 300, seed: 31);
+
+        // Assert
+        Assert.All(full, d => Assert.Equal(offset, d.Offset));
+        Assert.All(full, d => Assert.InRange(d.UtcTicks, 0, DateTime.MaxValue.Ticks - offset.Ticks));
+        Assert.Contains(full, static d => d.UtcTicks == 0);
+        Assert.Contains(full, d => d.UtcTicks == DateTime.MaxValue.Ticks - offset.Ticks);
+        Assert.All(bounded, d => Assert.Equal(offset, d.Offset));
+        Assert.All(bounded, d => Assert.InRange(d, min, max));
+        Assert.Contains(min, bounded);
+        Assert.Contains(max, bounded);
     }
 
     [Fact]

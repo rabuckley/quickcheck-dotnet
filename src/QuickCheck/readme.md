@@ -64,6 +64,7 @@ Generate.DateTime()                 // mostly 1900-2100, often round times, some
 Generate.DateOnly()                 // mostly 1900-2100, sometimes the bounds
 Generate.TimeOnly()                 // often round, sometimes the bounds
 Generate.DateTimeOffset()           // any whole-minute offset, mostly whole hours; sometimes the bounds verbatim
+Generate.DateTimeOffset(offset)     // every instant that one offset can represent
 Generate.TimeSpan()                 // either sign; whole ticks, ms, seconds, minutes, hours or days
 Generate.Guid()
 ```
@@ -137,13 +138,13 @@ Drawing each component on its own means a particular value such as the upper bou
 var anyKind = Generate.Enum<DateTimeKind>().SelectMany(kind => Generate.DateTime(kind));
 ```
 
-`Generate.DateTimeOffset(min, max)` compares its bounds as instants and draws the offset independently of them: any whole minute from -14:00 to +14:00 that keeps the local clock time inside `DateTime`'s range, whole hours three draws in four. For a fixed offset, generate the local time and attach it, with bounds, because the full `DateTime` range runs off the end of `DateTimeOffset`'s near the extremes:
+`Generate.DateTimeOffset(min, max)` compares its bounds as instants and draws the offset independently of them: any whole minute from -14:00 to +14:00 that keeps the local clock time inside `DateTime`'s range, whole hours three draws in four. Pass an offset to fix it instead:
 
 ```csharp
-var offset = TimeSpan.FromHours(5.5);
-var inIndia = Generate.DateTime(new DateTime(1900, 1, 1), new DateTime(2100, 1, 1))
-    .Select(local => new DateTimeOffset(local, offset));
+var inIndia = Generate.DateTimeOffset(TimeSpan.FromHours(5.5));
 ```
+
+A fixed offset trims whichever end of the range would push the local clock time past `DateTime`'s: `inIndia` stops 5:30 before `DateTimeOffset.MaxValue`, where the local time reaches `DateTime.MaxValue`, and a negative offset trims the early end instead. An offset that leaves nothing of `min`..`max` throws at the call site rather than part way into a run.
 
 `Generate.TimeSpan()` picks a unit (ticks, milliseconds, seconds, minutes, hours or days) and then a whole number of it of either sign, small counts most often, so spans of every scale appear and a shrunk span is a round one.
 
