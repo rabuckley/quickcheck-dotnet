@@ -58,7 +58,7 @@ public static partial class Generate
     /// </exception>
     public static Generator<T> Integer<T>() where T : IBinaryInteger<T>, IMinMaxValue<T>
     {
-        if (!IntegerGenerator<T>.TryGetDistance(T.MinValue, T.MaxValue, out _))
+        if (!IntegerRange<T>.TryGetDistance(T.MinValue, T.MaxValue, out _))
         {
             throw new NotSupportedException(
                 $"{typeof(T).Name} spans more than 64 bits; use Between to generate a narrower range.");
