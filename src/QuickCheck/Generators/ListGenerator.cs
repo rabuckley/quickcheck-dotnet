@@ -19,11 +19,7 @@ internal sealed class ListGenerator<T> : Generator<List<T>>
         _minLength = minLength;
         _maxLength = maxLength;
 
-        // Aim for a modest average length above the minimum (the same heuristic Hypothesis uses),
-        // so typical examples stay readable while long ones remain reachable.
-        var averageExtra = Math.Min(Math.Max(minLength * 2, minLength + 5), 0.5 * (minLength + maxLength)) - minLength;
-
-        var continueProbability = averageExtra <= 0 ? 0 : 1 - 1 / (1 + averageExtra);
+        var continueProbability = CollectionLength.ContinueProbability(minLength, maxLength);
 
         // Each optional element is guarded by a "more?" choice drawn inside the same span as the
         // element, so the shrinker can delete the pair as one unit, and minimising a guard to false
