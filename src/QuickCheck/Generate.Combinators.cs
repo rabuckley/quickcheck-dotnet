@@ -146,6 +146,30 @@ public static partial class Generate
         /// </exception>
         public Generator<Memory<T>> Memory(int minLength = 0, int maxLength = 64) =>
             generator.Array(minLength, maxLength).Select(static array => new Memory<T>(array));
+
+        /// <summary>
+        /// Creates a generator for sets of distinct elements drawn from this generator.
+        /// </summary>
+        /// <param name="minLength">The inclusive lower bound of the set size. The default is 0.</param>
+        /// <param name="maxLength">The inclusive upper bound of the set size. The default is 64.</param>
+        /// <returns>
+        /// A generator that produces sets within the given size range, whose elements are distinct
+        /// under the element type's default equality, and that shrinks by removing elements and
+        /// shrinking the ones that remain.
+        /// </returns>
+        /// <remarks>
+        /// Each element draws up to ten candidates, skipping any already in the set. Once the set
+        /// holds <paramref name="minLength"/> elements, ten skips end it, so a small element domain
+        /// caps the size rather than failing. Before that, ten skips discard the example, so a
+        /// <paramref name="minLength"/> above the number of distinct values this generator can
+        /// produce discards every example.
+        /// </remarks>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// <paramref name="minLength"/> is negative, or <paramref name="maxLength"/> is less than
+        /// <paramref name="minLength"/>.
+        /// </exception>
+        public Generator<HashSet<T>> HashSet(int minLength = 0, int maxLength = 64) =>
+            new HashSetGenerator<T>(generator, minLength, maxLength);
     }
 
     extension<T>(Generator<T> generator) where T : class

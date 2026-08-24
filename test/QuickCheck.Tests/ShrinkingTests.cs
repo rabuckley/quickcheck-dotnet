@@ -56,6 +56,34 @@ public sealed class ShrinkingTests
     }
 
     [Fact]
+    public void Shrinking_WithAHashSet_ShouldDeleteElementsAndShrinkTheRest()
+    {
+        // Arrange
+        var property = Property.ForAll(Generate.Integer<int>().HashSet(), static set => set.Sum(static x => (long)x) < 100);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([100], result.Minimal.Value);
+    }
+
+    [Fact]
+    public void Shrinking_WithAHashSetCountProperty_ShouldFindTheSmallestDistinctElements()
+    {
+        // Arrange
+        var property = Property.ForAll(Generate.Between(0, 1000).HashSet(), static set => set.Count < 3);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([0, 1, 2], result.Minimal.Value.Order());
+    }
+
+    [Fact]
     public void Shrinking_WithADuplicate_ShouldFindTheSmallestPair()
     {
         // Arrange

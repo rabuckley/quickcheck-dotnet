@@ -81,6 +81,22 @@ public sealed class ReadmeTests
     }
 
     [Fact]
+    public void ReadmeSample_WithSets_ShouldGenerateDistinctElementsWithinBounds()
+    {
+        // Arrange
+        var sets = Generate.Between(0, 100).HashSet(minLength: 1, maxLength: 8);
+        var flags = Generate.Boolean().HashSet();
+
+        // Act
+        var sampledSets = sets.Sample(count: 100, seed: 1);
+        var sampledFlags = flags.Sample(count: 100, seed: 3);
+
+        // Assert
+        Assert.All(sampledSets, static set => Assert.InRange(set.Count, 1, 8));
+        Assert.All(sampledFlags, static set => Assert.InRange(set.Count, 0, 2));
+    }
+
+    [Fact]
     public void ReadmeSample_WithDateAndTimeRecipes_ShouldMixKindsAndFixTheOffset()
     {
         // Arrange

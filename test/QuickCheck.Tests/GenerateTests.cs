@@ -111,6 +111,57 @@ public sealed class GenerateTests
     }
 
     [Fact]
+    public void HashSet_WithLengthBounds_ShouldRespectThemAndReachBothBounds()
+    {
+        // Act
+        var bounded = Generate.Between(0, 20).HashSet(minLength: 2, maxLength: 5).Sample(count: 500, seed: 33);
+        var unbounded = Generate.Between(0, 20).HashSet().Sample(count: 500, seed: 34);
+
+        // Assert
+        Assert.All(bounded, static s => Assert.InRange(s.Count, 2, 5));
+        Assert.Contains(bounded, static s => s.Count == 2);
+        Assert.Contains(bounded, static s => s.Count == 5);
+        Assert.Contains(unbounded, static s => s.Count == 0);
+    }
+
+    [Fact]
+    public void HashSet_WithASmallDomain_ShouldStopAtTheDomainSize()
+    {
+        // Arrange
+        var generator = Generate.Boolean().HashSet();
+
+        // Act
+        var sets = generator.Sample(count: 200, seed: 35);
+        var result = Property.ForAll(generator, static _ => true).Check(new CheckOptions { Seed = 35 });
+
+        // Assert
+        Assert.All(sets, static s => Assert.InRange(s.Count, 0, 2));
+        Assert.Contains(sets, static s => s.Count == 2);
+
+        // Sample retries a discarded example a hundred times over, so only a check shows that
+        // running out of distinct elements ends the set rather than discarding the example.
+        Assert.Equal(0, result.Discards);
+    }
+
+    [Fact]
+    public void HashSet_WithMinLengthAboveTheDomainSize_ShouldDiscardEveryExample()
+    {
+        // Arrange
+        var generator = Generate.Boolean().HashSet(minLength: 3);
+
+        // Act & Assert
+        Assert.Throws<InvalidOperationException>(() => generator.Sample(count: 10, seed: 36));
+    }
+
+    [Fact]
+    public void HashSet_WithInvalidBounds_ShouldThrowArgumentOutOfRangeException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Boolean().HashSet(minLength: -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Boolean().HashSet(minLength: 3, maxLength: 2));
+    }
+
+    [Fact]
     public void ChoiceGenerators_WithManySamples_ShouldCoverEveryAlternativeAndRespectWeights()
     {
         // Act

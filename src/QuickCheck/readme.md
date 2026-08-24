@@ -79,6 +79,7 @@ var nonEmpty = Generate.String().Where(s => s.Length > 0);
 var lists = Generate.Between(0, 100).List(minLength: 1, maxLength: 10);
 var arrays = Generate.Boolean().Array();
 var memory = Generate.Integer<byte>().Memory();
+var sets = Generate.Between(0, 100).HashSet(minLength: 1, maxLength: 8);
 var maybe = Generate.String().OrNull();          // reference types; null 10% of the time
 var maybeInt = Generate.Integer<int>().Nullable(); // value types
 
@@ -164,7 +165,9 @@ A failure found through the constant branch minimises to that constant rather th
 
 ### Collection sizes
 
-`List`, `Array`, `Memory`, and `String` default to lengths between 0 and 64, but they do not draw uniformly from that range. They aim for an average length of about `minLength + 5` (or `2 * minLength`, if that is larger), never more than the middle of the range, and longer collections get rarer geometrically. This keeps examples small enough to run and shrink quickly. When length matters to your property, raise `minLength` rather than `maxLength` and use [`Classify`](#statistics) to check the distribution you are actually getting.
+`List`, `Array`, `Memory`, `String`, and `HashSet` default to lengths between 0 and 64, but they do not draw uniformly from that range. They aim for an average length of about `minLength + 5` (or `2 * minLength`, if that is larger), never more than the middle of the range, and longer collections get rarer geometrically. This keeps examples small enough to run and shrink quickly. When length matters to your property, raise `minLength` rather than `maxLength` and use [`Classify`](#statistics) to check the distribution you are actually getting.
+
+For `HashSet` the length counts distinct elements, under the type's default equality. Each new element draws up to ten candidates, skipping duplicates. Once the set holds `minLength` elements, ten skips end it, so a small domain caps the size rather than failing: `Generate.Boolean().HashSet()` stops at two elements and never discards. Before that, ten skips discard the example, so a `minLength` above the number of distinct values the generator can produce discards every example.
 
 ### Sampling
 
