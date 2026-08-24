@@ -98,6 +98,12 @@ public static class ValueFormatter
                 AppendCollection(builder, array);
                 break;
 
+            case not null when AsKeyValuePair(value) is { } pair:
+                Append(builder, pair.Key);
+                builder.Append(": ");
+                Append(builder, pair.Value);
+                break;
+
             case not null when HasSynthesizedToString(value.GetType()):
                 AppendRecord(builder, value);
                 break;
@@ -135,6 +141,36 @@ public static class ValueFormatter
         }
 
         return (Array?)type.GetMethod(nameof(Memory<byte>.ToArray), Type.EmptyTypes)?.Invoke(value, null);
+    }
+
+    /// <summary>
+    /// The key and value of a <see cref="KeyValuePair{TKey,TValue}"/> of any type arguments, which
+    /// no pattern on <see cref="object"/> can match, or <see langword="null"/> for anything else.
+    /// This is what makes a dictionary print as <c>["a": 1, "b": 2]</c>.
+    /// </summary>
+    [UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2075:MembersOnUnannotatedType",
+        Justification = "Key and Value are looked up on a live instance's own type, and a "
+            + "trimmed-away lookup yields null, which falls back to the value's ToString.")]
+    private static (object? Key, object? Value)? AsKeyValuePair(object value)
+    {
+        var type = value.GetType();
+
+        if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(KeyValuePair<,>))
+        {
+            return null;
+        }
+
+        var key = type.GetProperty(nameof(KeyValuePair<,>.Key));
+        var pairValue = type.GetProperty(nameof(KeyValuePair<,>.Value));
+
+        if (key is null || pairValue is null)
+        {
+            return null;
+        }
+
+        return (key.GetValue(value), pairValue.GetValue(value));
     }
 
     /// <summary>

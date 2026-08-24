@@ -74,6 +74,23 @@ public sealed class ValueFormatterTests
     }
 
     [Fact]
+    public void Format_WithKeyValuePairsAndDictionaries_ShouldFormatKeysAndValues()
+    {
+        // Arrange
+        // The multi-entry case uses a pair sequence rather than a dictionary: both format through
+        // the ordinary collection path, and Dictionary does not guarantee enumeration order.
+        var pairs = new KeyValuePair<string, int>[] { new("a", 1), new("b", 2) };
+        var dictionary = new Dictionary<string, int> { ["a"] = 1 };
+        var nested = new KeyValuePair<char, List<int>>('a', [1, 2]);
+
+        // Act & Assert
+        Assert.Equal("\"a\": 1", ValueFormatter.Format(new KeyValuePair<string, int>("a", 1)));
+        Assert.Equal("[\"a\": 1, \"b\": 2]", ValueFormatter.Format(pairs));
+        Assert.Equal("[\"a\": 1]", ValueFormatter.Format(dictionary));
+        Assert.Equal("'a': [1, 2]", ValueFormatter.Format(nested));
+    }
+
+    [Fact]
     public void Format_WithHandWrittenToString_ShouldUseIt()
     {
         // Arrange
