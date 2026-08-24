@@ -35,9 +35,8 @@ public static partial class Generate
         /// </summary>
         /// <param name="predicate">The condition a generated value is required to satisfy.</param>
         /// <returns>
-        /// A generator whose values satisfy <paramref name="predicate"/>. It draws up to
-        /// <see cref="MaxFilterAttempts"/> candidates per example and discards the example if none of
-        /// them passes.
+        /// A generator whose values satisfy <paramref name="predicate"/>. It draws up to ten
+        /// candidates per example and discards the example if none of them passes.
         /// </returns>
         /// <exception cref="ArgumentNullException"><paramref name="predicate"/> is <see langword="null"/>.</exception>
         public Generator<T> Where(Func<T, bool> predicate)
