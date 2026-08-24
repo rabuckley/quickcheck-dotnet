@@ -162,6 +162,72 @@ public sealed class GenerateTests
     }
 
     [Fact]
+    public void Dictionary_WithLengthBounds_ShouldRespectThemAndReachBothBounds()
+    {
+        // Act
+        var dictionaries = Generate
+            .Dictionary(Generate.Between(0, 100), Generate.Between(0, 100), minLength: 1, maxLength: 6)
+            .Sample(count: 500, seed: 37);
+
+        // Assert
+        Assert.All(dictionaries, static d => Assert.InRange(d.Count, 1, 6));
+        Assert.Contains(dictionaries, static d => d.Count == 1);
+        Assert.Contains(dictionaries, static d => d.Count == 6);
+    }
+
+    [Fact]
+    public void Dictionary_WithASmallKeyDomain_ShouldStopAtTheDomainSize()
+    {
+        // Arrange
+        var generator = Generate.Dictionary(Generate.Boolean(), Generate.Between(0, 10));
+
+        // Act
+        var dictionaries = generator.Sample(count: 200, seed: 39);
+        var result = Property.ForAll(generator, static _ => true).Check(new CheckOptions { Seed = 39 });
+
+        // Assert
+        Assert.All(dictionaries, static d => Assert.InRange(d.Count, 0, 2));
+        Assert.Contains(dictionaries, static d => d.Count == 2);
+        Assert.Equal(0, result.Discards);
+    }
+
+    [Fact]
+    public void Dictionary_WithNullKeys_ShouldRejectThemLikeDuplicates()
+    {
+        // Arrange
+        // The notnull constraint binds only at compile time, so a key generator can still hand the
+        // dictionary a null; typed as Generator<string> it satisfies the constraint regardless.
+        var keysWithNulls = Generate.From<string>(static source =>
+            source.NextBoolean(0.7) ? source.Draw(Generate.String()) : null!);
+
+        // Act
+        var dictionaries = Generate
+            .Dictionary(keysWithNulls, Generate.Between(0, 10))
+            .Sample(count: 200, seed: 38);
+
+        // Assert
+        Assert.All(dictionaries, static d => Assert.DoesNotContain(null, d.Keys));
+
+        // A null costs a redraw, not an entry, so the documented average of about minLength + 5
+        // holds.
+        Assert.True(dictionaries.Average(static d => d.Count) > 4);
+    }
+
+    [Fact]
+    public void Dictionary_WithInvalidArguments_ShouldThrow()
+    {
+        // Arrange
+        var keys = Generate.Between(0, 10);
+        var values = Generate.Boolean();
+
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => Generate.Dictionary<int, bool>(null!, values));
+        Assert.Throws<ArgumentNullException>(() => Generate.Dictionary(keys, (Generator<bool>)null!));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Dictionary(keys, values, minLength: -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Dictionary(keys, values, minLength: 3, maxLength: 2));
+    }
+
+    [Fact]
     public void ChoiceGenerators_WithManySamples_ShouldCoverEveryAlternativeAndRespectWeights()
     {
         // Act

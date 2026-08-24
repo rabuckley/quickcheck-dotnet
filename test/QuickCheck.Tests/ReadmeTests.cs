@@ -81,18 +81,21 @@ public sealed class ReadmeTests
     }
 
     [Fact]
-    public void ReadmeSample_WithSets_ShouldGenerateDistinctElementsWithinBounds()
+    public void ReadmeSample_WithSetsAndDictionaries_ShouldGenerateDistinctEntriesWithinBounds()
     {
         // Arrange
         var sets = Generate.Between(0, 100).HashSet(minLength: 1, maxLength: 8);
+        var lookup = Generate.Dictionary(Generate.String(), Generate.Integer<int>());
         var flags = Generate.Boolean().HashSet();
 
         // Act
         var sampledSets = sets.Sample(count: 100, seed: 1);
+        var sampledLookups = lookup.Sample(count: 100, seed: 2);
         var sampledFlags = flags.Sample(count: 100, seed: 3);
 
         // Assert
         Assert.All(sampledSets, static set => Assert.InRange(set.Count, 1, 8));
+        Assert.Contains(sampledLookups, static d => d.Count > 1);
         Assert.All(sampledFlags, static set => Assert.InRange(set.Count, 0, 2));
     }
 

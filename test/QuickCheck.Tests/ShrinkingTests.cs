@@ -84,6 +84,24 @@ public sealed class ShrinkingTests
     }
 
     [Fact]
+    public void Shrinking_WithADictionary_ShouldShrinkToOneMinimalEntry()
+    {
+        // Arrange
+        var property = Property.ForAll(
+            Generate.Dictionary(Generate.Between(0, 1000), Generate.Between(0, 1000)),
+            static d => d.Values.Sum() < 100);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        var entry = Assert.Single(result.Minimal.Value);
+        Assert.Equal(0, entry.Key);
+        Assert.Equal(100, entry.Value);
+    }
+
+    [Fact]
     public void Shrinking_WithADuplicate_ShouldFindTheSmallestPair()
     {
         // Arrange

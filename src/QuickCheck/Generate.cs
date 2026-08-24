@@ -304,4 +304,40 @@ public static partial class Generate
 
         return From(source => (source.Draw(generator1), source.Draw(generator2), source.Draw(generator3)));
     }
+
+    /// <summary>
+    /// Creates a generator for dictionaries whose keys and values are drawn from the specified
+    /// generators.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the keys.</typeparam>
+    /// <typeparam name="TValue">The type of the values.</typeparam>
+    /// <param name="keys">The generator that produces the keys of each dictionary.</param>
+    /// <param name="values">The generator that produces the values of each dictionary.</param>
+    /// <param name="minLength">The inclusive lower bound of the entry count. The default is 0.</param>
+    /// <param name="maxLength">The inclusive upper bound of the entry count. The default is 64.</param>
+    /// <returns>
+    /// A generator that produces dictionaries within the given size range, whose keys are distinct
+    /// under the key type's default equality, and that shrinks by removing entries and shrinking
+    /// the keys and values that remain.
+    /// </returns>
+    /// <remarks>
+    /// Each entry draws up to ten key candidates, skipping any that is null or already present.
+    /// Once the dictionary holds <paramref name="minLength"/> entries, ten skips end it, so a small
+    /// key domain caps the size rather than failing. Before that, ten skips discard the example, so
+    /// a <paramref name="minLength"/> above the number of distinct keys <paramref name="keys"/> can
+    /// produce discards every example.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="keys"/> or <paramref name="values"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="minLength"/> is negative, or <paramref name="maxLength"/> is less than
+    /// <paramref name="minLength"/>.
+    /// </exception>
+    public static Generator<Dictionary<TKey, TValue>> Dictionary<TKey, TValue>(
+        Generator<TKey> keys,
+        Generator<TValue> values,
+        int minLength = 0,
+        int maxLength = 64) where TKey : notnull =>
+        new DictionaryGenerator<TKey, TValue>(keys, values, minLength, maxLength);
 }
