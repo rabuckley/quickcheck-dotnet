@@ -74,6 +74,20 @@ public sealed class ValueFormatterTests
     }
 
     [Fact]
+    public void Format_WithFloatingPointValues_ShouldPrintTheShortestRoundTripFormAndSpecialValues()
+    {
+        // Act & Assert
+        Assert.Equal("0.1", ValueFormatter.Format(0.1));
+        Assert.Equal("5E-324", ValueFormatter.Format(double.Epsilon));
+        Assert.Equal("-0", ValueFormatter.Format(-0.0));
+        Assert.Equal("NaN", ValueFormatter.Format(float.NaN));
+        Assert.Equal("Infinity", ValueFormatter.Format(Half.PositiveInfinity));
+        Assert.Equal("-Infinity", ValueFormatter.Format(double.NegativeInfinity));
+        Assert.Equal("1.00", ValueFormatter.Format(1.00m));
+        Assert.Equal("0.0000000000000000000000000001", ValueFormatter.Format(new decimal(lo: 1, mid: 0, hi: 0, isNegative: false, scale: 28)));
+    }
+
+    [Fact]
     public void Format_WithKeyValuePairsAndDictionaries_ShouldFormatKeysAndValues()
     {
         // Arrange
