@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 // The notnull constraint is a warning, not an error, and the dictionary generator redraws null
 // keys, so a Dictionary<int?, string> parameter is legal.
@@ -37,6 +38,8 @@ public sealed class GeneratorResolverTests
     }
 
     public sealed record Price(Cents Amount, string Currency);
+
+    public sealed record Quote(decimal Amount, string Currency);
 
     public interface IStock : IArbitrary<IStock>
     {
@@ -129,6 +132,8 @@ public sealed class GeneratorResolverTests
         public void Stocked(IStock stock) => _ = stock;
         public void Temporal(DateTime moment, DateTimeOffset instant, DateOnly date, TimeOnly time, TimeSpan span, Guid id, DateTime? maybe) =>
             _ = (moment, instant, date, time, span, id, maybe);
+        public void Fractional(double x, float y, Half z, NFloat w, decimal amount, double? maybe, List<double> xs, Quote quote) =>
+            _ = (x, y, z, w, amount, maybe, xs, quote);
         public static Generator<string> Text => Generate.Constant("test class");
         public static Generator<int> Big => Generate.Between(1000, 1099);
     }
@@ -193,6 +198,41 @@ public sealed class GeneratorResolverTests
         Assert.Contains(samples, static a => a.Values[6] is null);
         Assert.Contains(samples, static a => a.Values[6] is DateTime);
         Assert.Equal(100, samples.Select(static a => (Guid)a.Values[5]!).Distinct().Count());
+    }
+
+    [Fact]
+    public void GeneratorResolver_WithFloatingPointParameters_ShouldUseTheBuiltInGenerators()
+    {
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Fractional));
+
+        // Act
+        var samples = arguments.Sample(count: 500, seed: 6);
+        var doubles = samples.Select(static a => a.Values[0]).ToList();
+        var singles = samples.Select(static a => a.Values[1]).ToList();
+        var halves = samples.Select(static a => a.Values[2]).ToList();
+        var natives = samples.Select(static a => a.Values[3]).ToList();
+        var amounts = samples.Select(static a => a.Values[4]).ToList();
+        var maybes = samples.Select(static a => a.Values[5]).ToList();
+        var lists = samples.Select(static a => a.Values[6]).ToList();
+        var quotes = samples.Select(static a => a.Values[7]).ToList();
+
+        // Assert
+        Assert.All(doubles, static x => Assert.IsType<double>(x));
+        Assert.All(singles, static y => Assert.IsType<float>(y));
+        Assert.All(halves, static z => Assert.IsType<Half>(z));
+        Assert.All(natives, static w => Assert.IsType<NFloat>(w));
+        Assert.All(amounts, static amount => Assert.IsType<decimal>(amount));
+        Assert.All(quotes, static quote => Assert.IsType<Quote>(quote));
+        Assert.Contains(doubles, static x => x is double value && double.IsNaN(value));
+        Assert.Contains(singles, static y => y is float value && float.IsInfinity(value));
+        Assert.Contains(halves, static z => z is Half value && Half.IsNaN(value));
+        Assert.Contains(natives, static w => w is NFloat value && NFloat.IsNaN(value));
+        Assert.Contains(amounts, static amount => amount is decimal value && !decimal.IsInteger(value));
+        Assert.Contains(maybes, static maybe => maybe is null);
+        Assert.Contains(maybes, static maybe => maybe is double);
+        Assert.Contains(lists, static list => list is List<double> { Count: > 1 });
+        Assert.Contains(quotes, static quote => quote is Quote { Amount: var amount } && !decimal.IsInteger(amount));
     }
 
     [Fact]

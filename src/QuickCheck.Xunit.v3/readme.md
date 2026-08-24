@@ -49,7 +49,9 @@ A parameter's generator is found, in order, from:
 1. `[Generator(nameof(Member))]` on the parameter: a static `Generator<T>` property, field, or parameterless method on the test class (or on the attribute's `Generators` type, or on an explicit `[Generator(typeof(Source), "Member")]`). It applies to a record's positional parameters too, so a nested member can name its own generator.
 2. A **public** static `Generator<T>` member of the attribute's `Generators` type, matched by type. This also applies to nested members of records.
 3. The type's `IArbitrary<T>` implementation.
-4. Built-ins: integers, `bool`, `char`, `string`, enums, `DateTime`, `DateTimeOffset`, `DateOnly`, `TimeOnly`, `TimeSpan`, `Guid`, `Nullable<T>`, arrays, `List<T>`, `HashSet<T>` and `Dictionary<TKey, TValue>` with their interfaces, tuples, and any type with a single public constructor (records included), derived recursively. Nullable annotations add `null` examples, though never as a dictionary key.
+4. Built-ins: integers, `double`, `float`, `Half`, `NFloat`, `decimal`, `bool`, `char`, `string`, enums, `DateTime`, `DateTimeOffset`, `DateOnly`, `TimeOnly`, `TimeSpan`, `Guid`, `Nullable<T>`, arrays, `List<T>`, `HashSet<T>` and `Dictionary<TKey, TValue>` with their interfaces, tuples, and any type with a single public constructor (records included), derived recursively. Nullable annotations add `null` examples, though never as a dictionary key.
+
+A `double`, `float`, `Half` or `NFloat` parameter draws from the full range, so it gets `NaN`, both infinities and `-0.0` as well as finite values. For finite values only, or any narrower range, name a generator built from `Generate.FloatingPoint(min, max)` with `[Generator]`.
 
 ```csharp
 public sealed class AccountTests

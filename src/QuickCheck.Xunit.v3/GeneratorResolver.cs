@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace QuickCheck.Xunit;
 
@@ -306,6 +307,16 @@ internal sealed class GeneratorResolver
             || type == typeof(nint) || type == typeof(nuint))
         {
             return GeneratorReflection.Integer(type);
+        }
+
+        if (type == typeof(double) || type == typeof(float) || type == typeof(Half) || type == typeof(NFloat))
+        {
+            return GeneratorReflection.FloatingPoint(type);
+        }
+
+        if (type == typeof(decimal))
+        {
+            return Generate.Decimal();
         }
 
         return null;

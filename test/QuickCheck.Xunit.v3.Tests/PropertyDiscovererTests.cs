@@ -16,14 +16,14 @@ public sealed class PropertyDiscovererTests
 
         public async void Async_void(int x) => await Task.Yield();
 
-        public void Unsupported_type(double d) => _ = d;
+        public void Unsupported_type(Uri uri) => _ = uri;
 
         public void Missing_named_generator([Generator("Nope")] int x) => _ = x;
 
         public void Wrongly_typed_generator([Generator(nameof(Text))] int x) => _ = x;
 
         [Trait("Category", "Integration")]
-        public void Categorised_but_unsupported(double d) => _ = d;
+        public void Categorised_but_unsupported(Uri uri) => _ = uri;
 
         public static Generator<string> Text => Generate.String();
     }
@@ -72,7 +72,7 @@ public sealed class PropertyDiscovererTests
     [InlineData(nameof(Samples.ByRef), "parameter 'x' is passed by reference")]
     [InlineData(nameof(Samples.Returns_int), "return type Int32 is not supported")]
     [InlineData(nameof(Samples.Async_void), "'async void' is not supported")]
-    [InlineData(nameof(Samples.Unsupported_type), "Parameter 'd' (Double): QuickCheck has no built-in generator for Double")]
+    [InlineData(nameof(Samples.Unsupported_type), "Parameter 'uri' (Uri): QuickCheck has no built-in generator for Uri")]
     [InlineData(nameof(Samples.Missing_named_generator), "Parameter 'x' (Int32): no static generator member named 'Nope' was found on Samples")]
     [InlineData(nameof(Samples.Wrongly_typed_generator), "'Samples.Text' is a Generator<String>, not a Generator<Int32>")]
     public async Task Discover_WithInvalidMethod_ShouldCreateAnErrorTestCaseNamingTheProblem(string method, string expectedMessage)

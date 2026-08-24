@@ -18,6 +18,7 @@ internal static class GeneratorReflection
     public static Generator<object?> Box(Type valueType, object generator) => (Generator<object?>)Invoke(nameof(BoxOf), valueType, generator);
     public static object Arbitrary(Type type) => Invoke(nameof(ArbitraryOf), type);
     public static object Integer(Type type) => Invoke(nameof(IntegerOf), type);
+    public static object FloatingPoint(Type type) => Invoke(nameof(FloatingPointOf), type);
     public static object Enum(Type type) => Invoke(nameof(EnumOf), type);
     public static object Nullable(Type underlying, object generator) => Invoke(nameof(NullableOf), underlying, generator);
     public static object OrNull(Type type, object generator) => Invoke(nameof(OrNullOf), type, generator);
@@ -111,6 +112,8 @@ internal static class GeneratorReflection
             $"{GeneratorResolver.TypeName(typeof(T))}.Arbitrary returned null.");
 
     private static Generator<T> IntegerOf<T>() where T : IBinaryInteger<T>, IMinMaxValue<T> => Generate.Integer<T>();
+
+    private static Generator<T> FloatingPointOf<T>() where T : IFloatingPointIeee754<T>, IMinMaxValue<T> => Generate.FloatingPoint<T>();
 
     private static Generator<T> EnumOf<T>() where T : struct, Enum => Generate.Enum<T>();
 
