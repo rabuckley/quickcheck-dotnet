@@ -1,5 +1,9 @@
 using System.Reflection;
 
+// The notnull constraint is a warning, not an error, and the dictionary generator redraws null
+// keys, so a Dictionary<int?, string> parameter is legal.
+#pragma warning disable CS8714
+
 namespace QuickCheck.Xunit.Tests;
 
 public sealed class GeneratorResolverTests
@@ -9,6 +13,10 @@ public sealed class GeneratorResolverTests
     public sealed record Customer(string Name, Address Home, Address? Work, IReadOnlyList<Address> Previous);
 
     public sealed record Tree(List<Tree> Children);
+
+    public sealed record Graph(Dictionary<string, Graph> Nodes);
+
+    public sealed record Cycle(Dictionary<Cycle, string> Edges);
 
     public sealed class Chain(Chain next)
     {
@@ -96,6 +104,17 @@ public sealed class GeneratorResolverTests
     {
         public void Nullables(int? maybe, string? text, Customer customer) => _ = (maybe, text, customer);
         public void Recursive(Tree tree) => _ = tree;
+        public void Networked(Graph graph) => _ = graph;
+        public void Cyclic(Cycle cycle) => _ = cycle;
+        public void Collected(
+            HashSet<int> set,
+            ISet<string> setInterface,
+            IReadOnlySet<bool> readOnlySet,
+            Dictionary<string, int> dictionary,
+            IDictionary<int, string?> nullableValues,
+            Dictionary<int?, string> nullableKeys) =>
+            _ = (set, setInterface, readOnlySet, dictionary, nullableValues, nullableKeys);
+        public void Nullable_keys(Dictionary<int?, string> keyed) => _ = keyed;
         public void Endless(Chain chain) => _ = chain;
         public void Abstract(Shape shape) => _ = shape;
         public void Ambiguous(TwoConstructors value) => _ = value;
@@ -112,6 +131,12 @@ public sealed class GeneratorResolverTests
             _ = (moment, instant, date, time, span, id, maybe);
         public static Generator<string> Text => Generate.Constant("test class");
         public static Generator<int> Big => Generate.Between(1000, 1099);
+    }
+
+    public static class NullableKeyRegistry
+    {
+        public static Generator<int?> Keys =>
+            Generate.Between(100, 109).Select(static x => x % 3 == 0 ? null : (int?)x);
     }
 
     public static class NamedRegistry
@@ -184,6 +209,83 @@ public sealed class GeneratorResolverTests
         Assert.Contains(trees, static tree => Depth(tree) > 1);
 
         static int Depth(Tree tree) => 1 + (tree.Children.Count == 0 ? 0 : tree.Children.Max(Depth));
+    }
+
+    [Fact]
+    public void GeneratorResolver_WithSetAndDictionaryParameters_ShouldGenerateEveryDeclaredShape()
+    {
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Collected));
+
+        // Act
+        var samples = arguments.Sample(count: 100, seed: 14);
+        var nullableValues = samples.Select(static a => (IDictionary<int, string?>)a.Values[4]!).ToList();
+        var nullableKeys = samples.Select(static a => (Dictionary<int?, string>)a.Values[5]!).ToList();
+
+        // Assert
+        Assert.All(samples, static a =>
+        {
+            Assert.IsType<HashSet<int>>(a.Values[0]);
+            Assert.IsType<HashSet<string>>(a.Values[1]);
+            Assert.IsType<HashSet<bool>>(a.Values[2]);
+            Assert.IsType<Dictionary<string, int>>(a.Values[3]);
+            Assert.IsType<Dictionary<int, string?>>(a.Values[4]);
+            Assert.IsType<Dictionary<int?, string>>(a.Values[5]);
+        });
+        Assert.Contains(samples, static a => ((HashSet<int>)a.Values[0]!).Count > 1);
+        Assert.Contains(samples, static a => ((ISet<string>)a.Values[1]!).Count > 1);
+        Assert.Contains(samples, static a => ((IReadOnlySet<bool>)a.Values[2]!).Count > 1);
+        Assert.Contains(samples, static a => ((Dictionary<string, int>)a.Values[3]!).Count > 1);
+        Assert.Contains(nullableValues, static d => d.Values.Any(static v => v is null));
+        Assert.Contains(nullableValues, static d => d.Values.Any(static v => v is not null));
+        Assert.Contains(nullableKeys, static d => d.Count > 1);
+        Assert.All(nullableKeys, static d => Assert.All(d.Keys, static k => Assert.True(k.HasValue)));
+    }
+
+    [Fact]
+    public void GeneratorResolver_WithARegisteredNullableKeyGenerator_ShouldUseItAndRedrawItsNulls()
+    {
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Nullable_keys), typeof(NullableKeyRegistry));
+
+        // Act
+        var dictionaries = arguments.Sample(count: 100, seed: 15).Select(static a => (Dictionary<int?, string>)a.Values[0]!).ToList();
+
+        // Assert
+        Assert.All(dictionaries, static d => Assert.All(d.Keys, static k => Assert.InRange(k!.Value, 100, 109)));
+        Assert.Contains(dictionaries, static d => d.Count == 5);
+    }
+
+    [Fact]
+    public void GeneratorResolver_WithRecursiveDictionary_ShouldUnrollToTheDepthLimitAndEndInEmptyDictionaries()
+    {
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Networked));
+
+        // Act
+        var graphs = arguments.Sample(count: 50, seed: 15).Select(static a => (Graph)a.Values[0]!);
+
+        // Assert
+        Assert.All(graphs, static graph => Assert.InRange(Depth(graph), 1, GeneratorResolver.MaxRecursionDepth));
+        Assert.Contains(graphs, static graph => Depth(graph) > 1);
+
+        static int Depth(Graph graph) => 1 + (graph.Nodes.Count == 0 ? 0 : graph.Nodes.Values.Max(Depth));
+    }
+
+    [Fact]
+    public void GeneratorResolver_WithARecursiveDictionaryKey_ShouldUnrollToTheDepthLimit()
+    {
+        // Arrange
+        var arguments = Arguments(nameof(Samples.Cyclic));
+
+        // Act
+        var cycles = arguments.Sample(count: 50, seed: 16).Select(static a => (Cycle)a.Values[0]!);
+
+        // Assert
+        Assert.All(cycles, static cycle => Assert.InRange(Depth(cycle), 1, GeneratorResolver.MaxRecursionDepth));
+        Assert.Contains(cycles, static cycle => Depth(cycle) > 1);
+
+        static int Depth(Cycle cycle) => 1 + (cycle.Edges.Count == 0 ? 0 : cycle.Edges.Keys.Max(Depth));
     }
 
     [Fact]

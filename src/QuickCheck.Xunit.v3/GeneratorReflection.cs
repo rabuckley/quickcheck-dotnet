@@ -37,6 +37,30 @@ internal static class GeneratorReflection
     public static object EmptyList(Type item, Type collection) =>
         Invoke(nameof(EmptyListOf), [item, collection]);
 
+    /// <summary>
+    /// A generator of <see cref="HashSet{T}"/> typed as <paramref name="collection"/>,
+    /// which must be <see cref="HashSet{T}"/> or an interface it implements.
+    /// </summary>
+    public static object Set(Type item, Type collection, object generator) =>
+        Invoke(nameof(SetOf), [item, collection], generator);
+
+    /// <inheritdoc cref="Set"/>
+    public static object EmptySet(Type item, Type collection) =>
+        Invoke(nameof(EmptySetOf), [item, collection]);
+
+    /// <summary>
+    /// A generator of <see cref="Dictionary{TKey,TValue}"/> typed as
+    /// <paramref name="collection"/>, which must be <see cref="Dictionary{TKey,TValue}"/> or an
+    /// interface it implements. The <c>notnull</c> key constraint binds only at compile time, so
+    /// any runtime key type is accepted here.
+    /// </summary>
+    public static object Dictionary(Type key, Type value, Type collection, object keys, object values) =>
+        Invoke(nameof(DictionaryOf), [key, value, collection], keys, values);
+
+    /// <inheritdoc cref="Dictionary"/>
+    public static object EmptyDictionary(Type key, Type value, Type collection) =>
+        Invoke(nameof(EmptyDictionaryOf), [key, value, collection]);
+
     public static object Construct(Type type, ConstructorInfo constructor, Generator<object?>[] arguments) =>
         Invoke(nameof(ConstructOf), type, constructor, arguments);
 
@@ -106,6 +130,24 @@ internal static class GeneratorReflection
     // A fresh list per example: callers may mutate what they are given.
     private static Generator<TCollection> EmptyListOf<T, TCollection>() where TCollection : class =>
         Generate.From(static _ => (TCollection)(object)new List<T>());
+
+    private static Generator<TCollection> SetOf<T, TCollection>(Generator<T> item) where TCollection : class =>
+        item.HashSet().Select(static set => (TCollection)(object)set);
+
+    private static Generator<TCollection> EmptySetOf<T, TCollection>() where TCollection : class =>
+        Generate.From(static _ => (TCollection)(object)new HashSet<T>());
+
+    private static Generator<TCollection> DictionaryOf<TKey, TValue, TCollection>(
+        Generator<TKey> keys,
+        Generator<TValue> values)
+        where TKey : notnull
+        where TCollection : class =>
+        Generate.Dictionary(keys, values).Select(static dictionary => (TCollection)(object)dictionary);
+
+    private static Generator<TCollection> EmptyDictionaryOf<TKey, TValue, TCollection>()
+        where TKey : notnull
+        where TCollection : class =>
+        Generate.From(static _ => (TCollection)(object)new Dictionary<TKey, TValue>());
 
     private static Generator<T[]> EmptyArrayOf<T>() => Generate.Constant(System.Array.Empty<T>());
 

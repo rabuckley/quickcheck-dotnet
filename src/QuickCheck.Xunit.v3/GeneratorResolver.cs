@@ -38,6 +38,16 @@ internal sealed class GeneratorResolver
         typeof(IReadOnlyList<>), typeof(IReadOnlyCollection<>)
     ];
 
+    private static readonly HashSet<Type> SetTypes =
+    [
+        typeof(HashSet<>), typeof(ISet<>), typeof(IReadOnlySet<>)
+    ];
+
+    private static readonly HashSet<Type> DictionaryTypes =
+    [
+        typeof(Dictionary<,>), typeof(IDictionary<,>), typeof(IReadOnlyDictionary<,>)
+    ];
+
     private readonly Type? _registry;
     private readonly Type _testClass;
     private readonly NullabilityInfoContext _nullability = new();
@@ -179,6 +189,29 @@ internal sealed class GeneratorResolver
             return Depth(item) >= MaxRecursionDepth
                 ? GeneratorReflection.EmptyList(item, type)
                 : GeneratorReflection.List(item, type, ResolveTyped(item, nullability?.GenericTypeArguments.FirstOrDefault()));
+        }
+
+        if (type.IsGenericType && SetTypes.Contains(type.GetGenericTypeDefinition()))
+        {
+            var item = type.GetGenericArguments()[0];
+
+            return Depth(item) >= MaxRecursionDepth
+                ? GeneratorReflection.EmptySet(item, type)
+                : GeneratorReflection.Set(item, type, ResolveTyped(item, nullability?.GenericTypeArguments.FirstOrDefault()));
+        }
+
+        if (type.IsGenericType && DictionaryTypes.Contains(type.GetGenericTypeDefinition()))
+        {
+            var arguments = type.GetGenericArguments();
+            var (key, value) = (arguments[0], arguments[1]);
+            var info = nullability?.GenericTypeArguments is { Length: 2 } pair ? pair : null;
+
+            // _ancestors holds only non-nullable types, so the depth of a Nullable<T> key is always
+            // zero. Measuring its T instead keeps a recursive nullable key from resolving, at the
+            // limit, to an always-null generator that DictionaryGenerator rejects on every draw.
+            return Depth(Nullable.GetUnderlyingType(key) ?? key) >= MaxRecursionDepth || Depth(value) >= MaxRecursionDepth
+                ? GeneratorReflection.EmptyDictionary(key, value, type)
+                : GeneratorReflection.Dictionary(key, value, type, ResolveTyped(key, info?[0]), ResolveTyped(value, info?[1]));
         }
 
         return Construct(type);
