@@ -51,6 +51,8 @@ A `Generator<T>` describes how to produce values of `T`. Factories live on the s
 ```csharp
 Generate.Integer<int>()             // any int, biased towards small values and the extremes
 Generate.Between(1, 10)             // inclusive range; any IBinaryInteger, spanning at most 64 bits
+Generate.FloatingPoint<double>()    // any double: NaN, the infinities, -0 and subnormals included, short values most often
+Generate.FloatingPoint(0.0, 1.0)    // inclusive range, never NaN; any IFloatingPointIeee754 (float, Half, NFloat)
 Generate.Boolean()
 Generate.Char()                     // any UTF-16 code unit, biased towards printable ASCII
 Generate.String(maxLength: 20)      // from Char(); or String(Generate.Between('a', 'z')) for an alphabet
@@ -127,6 +129,21 @@ static Generator<Expression> Expressions() => Generate.Frequency(
     (1, Generate.Deferred(() => Generate.Tuple(Expressions(), Expressions()))
             .Select(Expression (pair) => new Add(pair.Item1, pair.Item2))));
 ```
+
+### Floating point
+
+`Generate.FloatingPoint<T>()` covers every `IFloatingPointIeee754<T>` with a `MinValue` and `MaxValue` (`double`, `float`, `Half`, `NFloat`). A value is drawn as an integer significand times a power of two, small exponents and short significands most often, so values print short: about 60% of doubles are integers and about a third have an exponent within ±7 (values like 0.375, 1.5 and 96). The rest spread over the whole exponent range, so about 8% are above 1e100, 2% are subnormal and 2.5% are non-finite.
+
+The full-range generator forces NaN, both infinities, `MinValue`, `MaxValue`, `Epsilon` of either sign and -0.0 one draw in sixteen between them. A bounded range forces its bounds and whichever of those lie within it, never produces NaN, and produces an infinity only when that bound is infinite. Bounds are sign-aware for zero: `FloatingPoint(0.0, 10.0)` never yields -0.0. The sign is drawn uniformly when the range spans zero, however narrow a side is, so `FloatingPoint(-0.0, 10.0)`, whose negative side holds nothing but -0.0, yields -0.0 half the time.
+
+```csharp
+var probabilities = Generate.FloatingPoint(0.0, 1.0);
+var finite = Generate.FloatingPoint(double.MinValue, double.MaxValue);
+```
+
+Shrinking lowers the exponent before the significand, so a shrunk value is an integer or a short fraction: the minimal counterexample of `Generate.FloatingPoint<double>()` is `0`, of `FloatingPoint(0.3, 0.9)` is `0.5`, and a failure that depends on a threshold can end on a round value just past it (`x <= 100` ends on 101 for most seeds and 128 for some).
+
+Reports print floating-point values in their shortest round-trip form (`0.1`, `5E-324`, `-0`, `NaN`, `Infinity`).
 
 ### Dates and times
 

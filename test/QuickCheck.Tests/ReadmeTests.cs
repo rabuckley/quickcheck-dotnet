@@ -119,6 +119,26 @@ public sealed class ReadmeTests
     }
 
     [Fact]
+    public void ReadmeSample_WithFloatingPointRecipes_ShouldStayInRangeAndShrinkToZero()
+    {
+        // Arrange
+        var probabilities = Generate.FloatingPoint(0.0, 1.0);
+        var finite = Generate.FloatingPoint(double.MinValue, double.MaxValue);
+
+        // Act
+        var sampledProbabilities = probabilities.Sample(count: 200, seed: 1);
+        var sampledFinite = finite.Sample(count: 500, seed: 2);
+        var minimal = Property.ForAll(Generate.FloatingPoint<double>(), static _ => false).Check(new CheckOptions { Seed = 3 }).Minimal!.Value;
+        var fraction = Property.ForAll(Generate.FloatingPoint(0.3, 0.9), static _ => false).Check(new CheckOptions { Seed = 3 }).Minimal!.Value;
+
+        // Assert
+        Assert.All(sampledProbabilities, static p => Assert.InRange(p, 0.0, 1.0));
+        Assert.All(sampledFinite, static x => Assert.True(double.IsFinite(x)));
+        Assert.Equal("0", ValueFormatter.Format(minimal));
+        Assert.Equal("0.5", ValueFormatter.Format(fraction));
+    }
+
+    [Fact]
     public void ReadmeSample_WithArbitraryOnTheType_ShouldGenerateFromIt()
     {
         // Arrange
