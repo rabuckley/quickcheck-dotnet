@@ -72,4 +72,45 @@ public static partial class Generate
     /// </remarks>
     public static Generator<T> FloatingPoint<T>(T min, T max) where T : IFloatingPointIeee754<T>, IMinMaxValue<T> =>
         new FloatingPointGenerator<T>(Ieee754Format<T>.Instance, min, max);
+
+    /// <summary>
+    /// Creates a generator for decimals over the full range of <see cref="decimal"/>.
+    /// </summary>
+    /// <returns>
+    /// A generator that produces values of either sign as an integer coefficient times a power of
+    /// ten, small scales and short coefficients most often but every scale from 0 to 28, produces
+    /// <see cref="decimal.MinValue"/>, <see cref="decimal.MaxValue"/> and the smallest magnitude,
+    /// <c>0.0000000000000000000000000001m</c>, of either sign more often than chance, and shrinks
+    /// towards <c>0m</c>.
+    /// </returns>
+    /// <remarks>
+    /// The scale is drawn, so members of a cohort such as <c>1.0m</c> and <c>1.00m</c>, which
+    /// compare equal but print differently, both appear. Shrinking minimises the scale before the
+    /// coefficient, so a failure that depends on a threshold can end on the round value just past
+    /// it rather than on the threshold itself.
+    /// </remarks>
+    public static Generator<decimal> Decimal() => FloatingPointGenerator<decimal>.Unbounded(DecimalFormat.Instance);
+
+    /// <summary>
+    /// Creates a generator for decimals within a specified range.
+    /// </summary>
+    /// <param name="min">The inclusive lower bound of the values to generate.</param>
+    /// <param name="max">The inclusive upper bound of the values to generate.</param>
+    /// <returns>
+    /// A generator that produces values from <paramref name="min"/> to <paramref name="max"/>,
+    /// distributed as <see cref="Decimal()"/> within the range, produces the bounds and whichever
+    /// of <see cref="decimal.MinValue"/>, <see cref="decimal.MaxValue"/> and
+    /// <c>±0.0000000000000000000000000001m</c> lie within it more often than chance, and shrinks
+    /// towards <c>0m</c>, or towards the value nearest zero with the fewest significant digits
+    /// when the range excludes it.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="min"/> is greater than <paramref name="max"/>.
+    /// </exception>
+    /// <remarks>
+    /// The sign is drawn uniformly when the range spans zero, so <c>Decimal(-1m, 1000m)</c> is
+    /// negative half the time.
+    /// </remarks>
+    public static Generator<decimal> Decimal(decimal min, decimal max) =>
+        new FloatingPointGenerator<decimal>(DecimalFormat.Instance, min, max);
 }

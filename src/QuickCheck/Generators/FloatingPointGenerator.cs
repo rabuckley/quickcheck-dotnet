@@ -47,9 +47,17 @@ internal sealed class FloatingPointGenerator<T> : Generator<T> where T : IFloati
             throw new ArgumentOutOfRangeException(nameof(max), "max must not be NaN.");
         }
 
-        var positiveZeroAboveNegativeZero = T.IsZero(min) && T.IsZero(max) && !T.IsNegative(min) && T.IsNegative(max);
+        var negativeZero = new FloatingPointParts(Negative: true, UInt128.Zero, Exponent: 0);
+        var signedZero = T.IsNegative(format.Compose(negativeZero));
 
-        if (min > max || positiveZeroAboveNegativeZero)
+        // Where the type has one zero, the sign bit its representation may carry says nothing
+        // about which side a bound is on: decimal.Negate(0m) and Math.Round(-0.4m) both set it on
+        // a value that is 0m, and splitting there would give a negative side of nothing but zero.
+        var minNegative = T.IsNegative(min) && (signedZero || !T.IsZero(min));
+        var maxNegative = T.IsNegative(max) && (signedZero || !T.IsZero(max));
+        var zerosOutOfOrder = T.IsZero(min) && T.IsZero(max) && !minNegative && maxNegative;
+
+        if (min > max || zerosOutOfOrder)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(min), $"min ({ValueFormatter.Format(min)}) must not exceed max ({ValueFormatter.Format(max)}).");
@@ -58,14 +66,14 @@ internal sealed class FloatingPointGenerator<T> : Generator<T> where T : IFloati
         _format = format;
         _wideSignificand = format.MaxSignificand > ulong.MaxValue;
 
-        if (!T.IsNegative(max))
+        if (!maxNegative)
         {
-            _positive = new Side(format, nan, lo: T.IsNegative(min) ? T.Zero : min, hi: max);
+            _positive = new Side(format, nan, lo: minNegative ? T.Zero : min, hi: max);
         }
 
-        if (T.IsNegative(min))
+        if (minNegative)
         {
-            _negative = new Side(format, nan, lo: T.IsNegative(max) ? T.Abs(max) : T.Zero, hi: T.Abs(min));
+            _negative = new Side(format, nan, lo: maxNegative ? T.Abs(max) : T.Zero, hi: T.Abs(min));
         }
 
         // An edge takes its canonical exponent, so shrinking a forced one starts from the fewest
@@ -80,9 +88,7 @@ internal sealed class FloatingPointGenerator<T> : Generator<T> where T : IFloati
             }
         }
 
-        var negativeZero = new FloatingPointParts(Negative: true, UInt128.Zero, Exponent: 0);
-
-        if (_negative is { } negative && T.IsZero(negative.Lo) && T.IsNegative(format.Compose(negativeZero)))
+        if (signedZero && _negative is { } negative && T.IsZero(negative.Lo))
         {
             edges.Add(negativeZero);
         }
@@ -93,6 +99,13 @@ internal sealed class FloatingPointGenerator<T> : Generator<T> where T : IFloati
         }
 
         _edges = [.. edges.Distinct()];
+    }
+
+    /// <summary>A generator over the whole of <typeparamref name="T"/>, without NaN.</summary>
+    public static FloatingPointGenerator<T> Unbounded(IFloatingPointFormat<T> format)
+    {
+        var (min, max) = format.FullRange;
+        return new FloatingPointGenerator<T>(format, min, max, nan: null);
     }
 
     /// <summary>

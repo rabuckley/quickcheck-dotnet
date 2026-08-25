@@ -304,3 +304,113 @@ internal sealed class Ieee754Format<T> : IFloatingPointFormat<T> where T : IFloa
         new($"{typeof(T).Name}'s generic math does not decompose into an integer significand and a radix exponent; "
             + "build its generator from Generate.From instead.");
 }
+
+/// <summary>
+/// The format of <see cref="decimal"/>: a 96-bit coefficient times a power of ten from 10^−28 to
+/// 10^0, so the exponent is the negated scale. Not IEEE 754, so there are no non-finite values
+/// and the cap is not a whole number of digits. Every zero composes as <c>0m</c> and decomposes as
+/// positive zero, so the negative-zero representation is never produced.
+/// </summary>
+internal sealed class DecimalFormat : IFloatingPointFormat<decimal>
+{
+    private const int Radix = 10;
+    private const int MaxScale = 28;
+    private const int MaxExponent = 0;
+    private const int SignMask = unchecked((int)0x8000_0000);
+    private const int ScaleShift = 16;
+
+    private static readonly UInt128[] PowersOfTen = Enumerable.Range(0, MaxScale + 1)
+        .Select(static exponent => Enumerable.Repeat((UInt128)Radix, exponent).Aggregate(UInt128.One, static (product, ten) => product * ten))
+        .ToArray();
+
+    private static readonly decimal Quantum = new(lo: 1, mid: 0, hi: 0, isNegative: false, scale: MaxScale);
+    private static readonly decimal[] Edges = [decimal.MinValue, decimal.MaxValue, Quantum, -Quantum];
+
+    private DecimalFormat()
+    {
+    }
+
+    public static DecimalFormat Instance { get; } = new();
+
+    public int MinExponent => -MaxScale;
+
+    public UInt128 MaxSignificand => (UInt128.One << 96) - UInt128.One;
+
+    public (decimal Min, decimal Max) FullRange => (decimal.MinValue, decimal.MaxValue);
+
+    public ReadOnlySpan<decimal> TypeEdges => Edges;
+
+    public decimal Compose(FloatingPointParts parts)
+    {
+        // Zero's exponent says nothing, and Decompose gives every zero exponent 0, so composing
+        // one at the exponent it was drawn at would report 0.000 for a range of fractions whose
+        // shrink target is 0m.
+        if (parts.Significand == UInt128.Zero)
+        {
+            return decimal.Zero;
+        }
+
+        return new decimal(
+            lo: (int)(uint)parts.Significand,
+            mid: (int)(uint)(parts.Significand >> 32),
+            hi: (int)(uint)(parts.Significand >> 64),
+            isNegative: parts.Negative,
+            scale: (byte)-parts.Exponent);
+    }
+
+    public FloatingPointParts Decompose(decimal value)
+    {
+        var (coefficient, scale, negative) = Parts(value);
+
+        return coefficient == UInt128.Zero
+            ? new FloatingPointParts(false, UInt128.Zero, 0)
+            : new FloatingPointParts(negative, coefficient, -scale);
+    }
+
+    public FloatingPointParts Canonical(decimal value) => FormatArithmetic.Reduce(Decompose(value), Radix, MaxExponent);
+
+    public (UInt128 Low, UInt128 High) SignificandBounds(decimal lo, decimal hi, int exponent)
+    {
+        if (exponent < MinExponent || exponent > MaxExponent)
+        {
+            return FormatArithmetic.NoSignificands;
+        }
+
+        var (lowCoefficient, lowScale, _) = Parts(lo);
+        var lowShift = -lowScale - exponent;
+        UInt128 low;
+
+        if (lowShift >= 0)
+        {
+            if (lowCoefficient > MaxSignificand / PowersOfTen[lowShift])
+            {
+                return FormatArithmetic.NoSignificands;
+            }
+
+            low = lowCoefficient * PowersOfTen[lowShift];
+        }
+        else
+        {
+            var (quotient, remainder) = UInt128.DivRem(lowCoefficient, PowersOfTen[-lowShift]);
+            low = remainder == UInt128.Zero ? quotient : quotient + UInt128.One;
+        }
+
+        var (highCoefficient, highScale, _) = Parts(hi);
+        var highShift = -highScale - exponent;
+        var high = highShift >= 0
+            ? highCoefficient <= MaxSignificand / PowersOfTen[highShift] ? highCoefficient * PowersOfTen[highShift] : MaxSignificand
+            : highCoefficient / PowersOfTen[-highShift];
+
+        return (low, high);
+    }
+
+    private static (UInt128 Coefficient, int Scale, bool Negative) Parts(decimal value)
+    {
+        Span<int> bits = stackalloc int[4];
+        decimal.GetBits(value, bits);
+
+        var coefficient = (UInt128)(uint)bits[0] | ((UInt128)(uint)bits[1] << 32) | ((UInt128)(uint)bits[2] << 64);
+        var scale = (bits[3] >> ScaleShift) & 0xFF;
+        return (coefficient, scale, (bits[3] & SignMask) != 0);
+    }
+}

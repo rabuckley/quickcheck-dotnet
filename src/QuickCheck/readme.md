@@ -53,6 +53,7 @@ Generate.Integer<int>()             // any int, biased towards small values and 
 Generate.Between(1, 10)             // inclusive range; any IBinaryInteger, spanning at most 64 bits
 Generate.FloatingPoint<double>()    // any double: NaN, the infinities, -0 and subnormals included, short values most often
 Generate.FloatingPoint(0.0, 1.0)    // inclusive range, never NaN; any IFloatingPointIeee754 (float, Half, NFloat)
+Generate.Decimal()                  // any decimal at any scale; Decimal(min, max) for a range
 Generate.Boolean()
 Generate.Char()                     // any UTF-16 code unit, biased towards printable ASCII
 Generate.String(maxLength: 20)      // from Char(); or String(Generate.Between('a', 'z')) for an alphabet
@@ -72,7 +73,7 @@ Generate.TimeSpan()                 // either sign; whole ticks, ms, seconds, mi
 Generate.Guid()
 ```
 
-The factories are named after their types, so in a file with `using static QuickCheck.Generate;` the names `DateTime`, `TimeSpan`, `Guid`, `String` and `Enum` resolve to the factories in expression position: `DateTime.UtcNow` or `Guid.NewGuid()` fail to compile there. Call the factories through `Generate.` instead, or write `System.DateTime.UtcNow` where you need both.
+The factories are named after their types, so in a file with `using static QuickCheck.Generate;` the names `DateTime`, `TimeSpan`, `Guid`, `Decimal`, `String` and `Enum` resolve to the factories in expression position: `DateTime.UtcNow`, `Guid.NewGuid()` or `Decimal.MaxValue` fail to compile there. Call the factories through `Generate.` instead, or write `System.DateTime.UtcNow` or `decimal.MaxValue` where you need both.
 
 Generators compose. Combinators are extension members on `Generator<T>` which means LINQ query syntax works:
 
@@ -132,18 +133,19 @@ static Generator<Expression> Expressions() => Generate.Frequency(
 
 ### Floating point
 
-`Generate.FloatingPoint<T>()` covers every `IFloatingPointIeee754<T>` with a `MinValue` and `MaxValue` (`double`, `float`, `Half`, `NFloat`). A value is drawn as an integer significand times a power of two, small exponents and short significands most often, so values print short: about 60% of doubles are integers and about a third have an exponent within ±7 (values like 0.375, 1.5 and 96). The rest spread over the whole exponent range, so about 8% are above 1e100, 2% are subnormal and 2.5% are non-finite.
+`Generate.FloatingPoint<T>()` covers every `IFloatingPointIeee754<T>` with a `MinValue` and `MaxValue` (`double`, `float`, `Half`, `NFloat`), and `Generate.Decimal()` covers `decimal`. A value is drawn as an integer significand times a power of the radix (2, or 10 for `decimal`), small exponents and short significands most often, so values print short: about 60% of doubles are integers and about a third have an exponent within ±7 (values like 0.375, 1.5 and 96). The rest spread over the whole exponent range, so about 8% are above 1e100, 2% are subnormal and 2.5% are non-finite.
 
 The full-range generator forces NaN, both infinities, `MinValue`, `MaxValue`, `Epsilon` of either sign and -0.0 one draw in sixteen between them. A bounded range forces its bounds and whichever of those lie within it, never produces NaN, and produces an infinity only when that bound is infinite. Bounds are sign-aware for zero: `FloatingPoint(0.0, 10.0)` never yields -0.0. The sign is drawn uniformly when the range spans zero, however narrow a side is, so `FloatingPoint(-0.0, 10.0)`, whose negative side holds nothing but -0.0, yields -0.0 half the time.
 
 ```csharp
 var probabilities = Generate.FloatingPoint(0.0, 1.0);
 var finite = Generate.FloatingPoint(double.MinValue, double.MaxValue);
+var prices = Generate.Decimal(0.01m, 1000m);
 ```
 
-Shrinking lowers the exponent before the significand, so a shrunk value is an integer or a short fraction: the minimal counterexample of `Generate.FloatingPoint<double>()` is `0`, of `FloatingPoint(0.3, 0.9)` is `0.5`, and a failure that depends on a threshold can end on a round value just past it (`x <= 100` ends on 101 for most seeds and 128 for some).
+Shrinking lowers the exponent before the significand, so a shrunk value is an integer or a short fraction: the minimal counterexample of `Generate.FloatingPoint<double>()` is `0`, of `FloatingPoint(0.3, 0.9)` is `0.5`, and a failure that depends on a threshold can end on a round value just past it (`x <= 100` ends on 101 for most seeds and 128 for some). `Generate.Decimal()` draws the scale as well, so cohort members such as `1.0m` and `1.00m` both appear, and it shrinks towards `0m`.
 
-Reports print floating-point values in their shortest round-trip form (`0.1`, `5E-324`, `-0`, `NaN`, `Infinity`).
+Reports print floating-point values in their shortest round-trip form (`0.1`, `5E-324`, `-0`, `NaN`, `Infinity`) and decimals with their scale (`1.00`).
 
 ### Dates and times
 

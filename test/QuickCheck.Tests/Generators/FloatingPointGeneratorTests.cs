@@ -15,6 +15,9 @@ public sealed class FloatingPointGeneratorTests
             T.NegativeInfinity,
             T.PositiveInfinity);
 
+    private static Labelled<decimal> Decimals(decimal min, decimal max) =>
+        Label(new FloatingPointGenerator<decimal>(DecimalFormat.Instance, min, max), min, max);
+
     /// <summary>Names a generator by its type and bounds, so a failure says which one failed.</summary>
     private static Labelled<T> Label<T>(FloatingPointGenerator<T> generator, T min, T max) where T : IFloatingPoint<T> =>
         new($"{typeof(T).Name} [{ValueFormatter.Format(min)}, {ValueFormatter.Format(max)}]", generator);
@@ -34,6 +37,17 @@ public sealed class FloatingPointGeneratorTests
                 Bounded(1e300, double.PositiveInfinity)),
             () => AssertEveryEdgeRoundTrips(Ieee754Format<float>.Instance, Unbounded<float>(), Bounded(float.MinValue, -1f)),
             () => AssertEveryEdgeRoundTrips(Ieee754Format<Half>.Instance, Unbounded<Half>(), Bounded((Half)(-5), (Half)5)));
+    }
+
+    [Fact]
+    public void Draw_WithEveryDecimalEdgeForced_ShouldEmitItExactly()
+    {
+        // Act & Assert
+        AssertEveryEdgeRoundTrips(
+            DecimalFormat.Instance,
+            Decimals(decimal.MinValue, decimal.MaxValue),
+            Decimals(0.3m, 0.9m),
+            Decimals(-1, 1000));
     }
 
     /// <summary>
@@ -111,20 +125,56 @@ public sealed class FloatingPointGeneratorTests
     }
 
     [Fact]
+    public void Edges_OfTheFullDecimalRange_ShouldBeTheFourExtremes()
+    {
+        // Arrange
+        var format = DecimalFormat.Instance;
+        var quantum = new decimal(lo: 1, mid: 0, hi: 0, isNegative: false, scale: 28);
+        decimal[] expected = [decimal.MinValue, decimal.MaxValue, quantum, -quantum];
+
+        // Act
+        var edges = Decimals(decimal.MinValue, decimal.MaxValue).Generator.Edges.ToArray()
+            .Select(edge => format.Compose(edge));
+
+        // Assert
+        // Compared as printed, which separates cohort members such as 1m and 1.0m.
+        Assert.Equal(
+            expected.Select(static x => ValueFormatter.Format(x)).Order(),
+            edges.Select(static x => ValueFormatter.Format(x)).Order());
+    }
+
+    [Fact]
+    public void Edges_OfDecimalBoundsWithTrailingZeros_ShouldTakeTheSimplestScale()
+    {
+        // Arrange
+        var generator = Decimals(1.00m, 2.50m).Generator;
+
+        // Act
+        var edges = generator.Edges.ToArray();
+
+        // Assert
+        Assert.Multiple(
+            () => Assert.Contains(new FloatingPointParts(false, UInt128.One, 0), edges),
+            () => Assert.Contains(new FloatingPointParts(false, 25, -1), edges));
+    }
+
+    [Fact]
     public void Decompose_OfAnyGeneratedValue_ShouldComposeBackToItAndCanonicaliseToOneTriple()
     {
         // Act & Assert
         Assert.Multiple(
             () => AssertDecomposeRoundTrips(Ieee754Format<double>.Instance, Generate.FloatingPoint<double>(), radix: 2, maxExponent: 971),
             () => AssertDecomposeRoundTrips(Ieee754Format<float>.Instance, Generate.FloatingPoint<float>(), radix: 2, maxExponent: 104),
-            () => AssertDecomposeRoundTrips(Ieee754Format<Half>.Instance, Generate.FloatingPoint<Half>(), radix: 2, maxExponent: 5));
+            () => AssertDecomposeRoundTrips(Ieee754Format<Half>.Instance, Generate.FloatingPoint<Half>(), radix: 2, maxExponent: 5),
+            () => AssertDecomposeRoundTrips(DecimalFormat.Instance, Generate.Decimal(), radix: 10, maxExponent: 0));
     }
 
     /// <summary>
     /// The decomposition contract over whatever the generator produces: the parts compose back to
     /// the value, the canonical parts still compose back, and the canonical significand no longer
     /// divides by <paramref name="radix"/> below <paramref name="maxExponent"/>, the format's
-    /// exponent ceiling, which pins a value to one triple.
+    /// exponent ceiling, which pins a value to one triple. Numeric rather than printed equality,
+    /// since the canonical form of a decimal is the shortest member of its cohort.
     /// </summary>
     private static void AssertDecomposeRoundTrips<T>(IFloatingPointFormat<T> format, Generator<T> generator, int radix, int maxExponent)
         where T : IFloatingPoint<T> =>
@@ -207,6 +257,48 @@ public sealed class FloatingPointGeneratorTests
             () => Assert.Equal((24, -149, 104), (singles.Precision, singles.MinExponent, singles.MaxExponent)),
             () => Assert.Equal((11, -24, 5), (halves.Precision, halves.MinExponent, halves.MaxExponent)),
             () => Assert.Equal((UInt128.One << 11) - UInt128.One, halves.MaxSignificand));
+    }
+
+    [Fact]
+    public void CanonicalParts_OfDecimalCohorts_ShouldGiveTheShortestMemberOfTheCohort()
+    {
+        // Arrange
+        var negativeZero = new decimal(lo: 0, mid: 0, hi: 0, isNegative: true, scale: 0);
+
+        // Act & Assert
+        AssertEachCanonicalForm(
+            DecimalFormat.Instance,
+            (1.00m, new FloatingPointParts(false, UInt128.One, 0)),
+            (-0.050m, new FloatingPointParts(true, 5, -2)),
+            (negativeZero, new FloatingPointParts(false, UInt128.Zero, 0)),
+            (decimal.MinValue, new FloatingPointParts(true, (UInt128.One << 96) - UInt128.One, 0)));
+    }
+
+    [Fact]
+    public void Compose_OfDecimalParts_ShouldKeepTheExponentAsTheScaleExceptForZero()
+    {
+        // Arrange
+        var format = DecimalFormat.Instance;
+
+        // Act & Assert
+        Assert.Multiple(
+            () => Assert.Equal("0.010", ValueFormatter.Format(format.Compose(new FloatingPointParts(false, 10, -3)))),
+            () => Assert.Equal("0", ValueFormatter.Format(format.Compose(new FloatingPointParts(false, UInt128.Zero, -3)))),
+            () => Assert.Equal("0", ValueFormatter.Format(format.Compose(new FloatingPointParts(true, UInt128.Zero, 0)))));
+    }
+
+    [Fact]
+    public void SignificandBounds_OfDecimals_ShouldRoundTowardsTheBoundsAndBeEmptyPastTheCapOrTheScales()
+    {
+        // Arrange
+        var format = DecimalFormat.Instance;
+
+        // Act & Assert
+        Assert.Multiple(
+            () => Assert.Equal(((UInt128)3, (UInt128)3), format.SignificandBounds(0.3m, 0.39m, -1)),
+            () => Assert.Equal((UInt128.Zero, (UInt128)3), format.SignificandBounds(0m, 0.39m, -1)),
+            () => AssertNoSignificands(format.SignificandBounds(decimal.MaxValue, decimal.MaxValue, -1)),
+            () => AssertNoSignificands(format.SignificandBounds(0m, 50m, 1)));
     }
 
     [Fact]

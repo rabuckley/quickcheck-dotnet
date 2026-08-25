@@ -250,6 +250,17 @@ public sealed class GenerateFloatingPointTests
             () => AssertEveryReplayedVariantStaysInRange(Generate.FloatingPoint(double.MinValue, double.MaxValue), double.MinValue, double.MaxValue));
     }
 
+    [Fact]
+    public void Decimal_OnAnyReplayedVariant_ShouldStayInRange()
+    {
+        // Act & Assert
+        Assert.Multiple(
+            () => AssertEveryReplayedVariantStaysInRange(Generate.Decimal(), decimal.MinValue, decimal.MaxValue),
+            () => AssertEveryReplayedVariantStaysInRange(Generate.Decimal(0.01m, 1000m), 0.01m, 1000m),
+            () => AssertEveryReplayedVariantStaysInRange(
+                Generate.Decimal(decimal.MaxValue - 1, decimal.MaxValue), decimal.MaxValue - 1, decimal.MaxValue));
+    }
+
     /// <summary>
     /// Replays every one-choice mutation of a recorded draw, every truncation of it, and a
     /// wholesale reshuffle, so a choice the generator no longer interprets the way it recorded it
@@ -284,4 +295,105 @@ public sealed class GenerateFloatingPointTests
             }
         }
     }
+
+    [Fact]
+    public void Decimal_WithFullRange_ShouldReachExtremesAndEveryScale()
+    {
+        // Arrange
+        var quantum = new decimal(lo: 1, mid: 0, hi: 0, isNegative: false, scale: 28);
+
+        // Act
+        var samples = Generate.Decimal().Sample(count: 2000, seed: 18);
+
+        // Assert
+        Assert.Contains(decimal.MinValue, samples);
+        Assert.Contains(decimal.MaxValue, samples);
+        Assert.Contains(quantum, samples);
+        Assert.Contains(samples, static x => x != 0 && decimal.IsInteger(x) && Scale(x) == 0);
+        Assert.Equal(Enumerable.Range(0, 29), samples.Select(Scale).Distinct().Order());
+        Assert.Contains(samples, static x => Math.Abs(x) > ulong.MaxValue && Math.Abs(x) < decimal.MaxValue);
+        Assert.Contains(samples, static x => Scale(x) > 0 && x == Math.Round(x, Scale(x) - 1));
+        Assert.InRange(samples.Count(static x => Scale(x) == 0), 400, 1000);
+    }
+
+    /// <summary>
+    /// Each range with the least number of distinct values it must produce, which is what stops a
+    /// generator that emits nothing but the two bounds from satisfying every other assertion. The
+    /// top two bounds are one quantum apart, so between them there is nothing but the bounds.
+    /// </summary>
+    public static TheoryData<decimal, decimal, int> DecimalRanges =>
+        new() { { 0, 1000, 500 }, { 0.3m, 0.9m, 500 }, { decimal.MaxValue - 1, decimal.MaxValue, 2 }, { -5, -5, 1 } };
+
+    [Theory]
+    [MemberData(nameof(DecimalRanges))]
+    public void Decimal_WithBounds_ShouldSpreadAcrossTheRangeAndReachBothBounds(decimal min, decimal max, int leastDistinct)
+    {
+        // Act
+        var samples = Generate.Decimal(min, max).Sample(count: 2000, seed: 19);
+
+        // Assert
+        Assert.All(samples, x => Assert.InRange(x, min, max));
+        Assert.InRange(samples.Count(x => x == min), 15, 2000);
+        Assert.InRange(samples.Count(x => x == max), 15, 2000);
+        Assert.InRange(samples.Distinct().Count(), leastDistinct, 2000);
+    }
+
+    [Fact]
+    public void Decimal_WithFalsifiedProperty_ShouldShrinkTowardsTheSimplestValue()
+    {
+        // Act
+        var full = Minimal(Generate.Decimal());
+        var fraction = Minimal(Generate.Decimal(0.3m, 0.9m));
+        var zeroToFraction = Minimal(Generate.Decimal(0m, 0.5m));
+        var zeroToQuantum = Minimal(Generate.Decimal(0m, 0.0000000000000000000000000001m));
+        var positive = Minimal(Generate.Decimal(3, 9));
+        var top = Minimal(Generate.Decimal(decimal.MaxValue - 1, decimal.MaxValue));
+        var negative = Minimal(Generate.Decimal(), static x => x >= 0);
+        var pastThreshold = Minimal(Generate.Decimal(), static x => x <= 100);
+
+        // Assert
+        Assert.Multiple(
+            () => Assert.Equal("0", ValueFormatter.Format(full)),
+            () => Assert.Equal("0.3", ValueFormatter.Format(fraction)),
+            // A range of nothing but fractions still reports its zero at scale 0, not as 0.0.
+            () => Assert.Equal("0", ValueFormatter.Format(zeroToFraction)),
+            () => Assert.Equal("0", ValueFormatter.Format(zeroToQuantum)),
+            () => Assert.Equal("3", ValueFormatter.Format(positive)),
+            () => Assert.Equal(decimal.MaxValue - 1, top),
+            () => Assert.Equal("-1", ValueFormatter.Format(negative)),
+            () => Assert.InRange(pastThreshold, 101, 128));
+    }
+
+    [Fact]
+    public void Decimal_WithASignBitOnAZeroBound_ShouldTreatItAsZero()
+    {
+        // Arrange, decimal's negative-zero representation is one nothing distinguishes from 0m
+        // and that ordinary arithmetic produces.
+        var negated = decimal.Negate(0m);
+        var rounded = Math.Round(-0.4m);
+
+        // Act
+        var fromZero = Generate.Decimal(0m, 5m).Sample(count: 2000, seed: 20);
+        var fromNegated = Generate.Decimal(negated, 5m).Sample(count: 2000, seed: 20);
+        var fromRounded = Generate.Decimal(rounded, 5m).Sample(count: 2000, seed: 20);
+        var degenerate = Generate.Decimal(0m, negated).Sample(count: 20, seed: 21);
+
+        // Assert
+        Assert.Multiple(
+            () => Assert.Equal(fromZero, fromNegated),
+            () => Assert.Equal(fromZero, fromRounded),
+            () => Assert.All(degenerate, static x => Assert.Equal(0m, x)));
+    }
+
+    [Fact]
+    public void Decimal_WithInvalidBounds_ShouldThrowArgumentOutOfRangeException()
+    {
+        // Act
+        var inverted = Assert.Throws<ArgumentOutOfRangeException>(() => Generate.Decimal(1, 0));
+
+        // Assert
+        Assert.Equal("min", inverted.ParamName);
+    }
+
+    private static int Scale(decimal value) => (decimal.GetBits(value)[3] >> 16) & 0xFF;
 }

@@ -124,16 +124,19 @@ public sealed class ReadmeTests
         // Arrange
         var probabilities = Generate.FloatingPoint(0.0, 1.0);
         var finite = Generate.FloatingPoint(double.MinValue, double.MaxValue);
+        var prices = Generate.Decimal(0.01m, 1000m);
 
         // Act
         var sampledProbabilities = probabilities.Sample(count: 200, seed: 1);
         var sampledFinite = finite.Sample(count: 500, seed: 2);
+        var sampledPrices = prices.Sample(count: 200, seed: 3);
         var minimal = Property.ForAll(Generate.FloatingPoint<double>(), static _ => false).Check(new CheckOptions { Seed = 3 }).Minimal!.Value;
         var fraction = Property.ForAll(Generate.FloatingPoint(0.3, 0.9), static _ => false).Check(new CheckOptions { Seed = 3 }).Minimal!.Value;
 
         // Assert
         Assert.All(sampledProbabilities, static p => Assert.InRange(p, 0.0, 1.0));
         Assert.All(sampledFinite, static x => Assert.True(double.IsFinite(x)));
+        Assert.All(sampledPrices, static p => Assert.InRange(p, 0.01m, 1000m));
         Assert.Equal("0", ValueFormatter.Format(minimal));
         Assert.Equal("0.5", ValueFormatter.Format(fraction));
     }
