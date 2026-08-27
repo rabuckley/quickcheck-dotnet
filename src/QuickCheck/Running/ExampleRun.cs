@@ -29,9 +29,33 @@ internal static class ExampleRun
         }
         catch (DiscardException)
         {
-            return Run(ExampleStatus.Discarded, default!);
+            return new ExampleRun<T>
+            {
+                Status = ExampleStatus.Discarded,
+                Choices = source.Recorded,
+                Spans = source.Spans,
+                Value = default!
+            };
         }
 
+        var outcome = await RunBodyAsync(value, body, cancellationToken).ConfigureAwait(false);
+
+        return new ExampleRun<T>
+        {
+            Status = outcome.Status,
+            Choices = source.Recorded,
+            Spans = source.Spans,
+            Value = value,
+            Statistics = outcome.Statistics,
+            Exception = outcome.Exception
+        };
+    }
+
+    private static async ValueTask<BodyOutcome> RunBodyAsync<T>(
+        T value,
+        Func<T, ValueTask<bool>> body,
+        CancellationToken cancellationToken)
+    {
         var statistics = new ExampleStatistics();
 
         try
@@ -51,11 +75,11 @@ internal static class ExampleRun
                 Property.CurrentStatistics.Value = null;
             }
 
-            return Run(holds ? ExampleStatus.Passed : ExampleStatus.Failed, value, statistics);
+            return new BodyOutcome(holds ? ExampleStatus.Passed : ExampleStatus.Failed, statistics);
         }
         catch (DiscardException)
         {
-            return Run(ExampleStatus.Discarded, value, statistics);
+            return new BodyOutcome(ExampleStatus.Discarded, statistics);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -63,21 +87,12 @@ internal static class ExampleRun
         }
         catch (Exception exception)
         {
-            return Run(ExampleStatus.Failed, value, statistics, exception);
+            return new BodyOutcome(ExampleStatus.Failed, statistics, exception);
         }
-
-        ExampleRun<T> Run(
-            ExampleStatus status,
-            T example,
-            ExampleStatistics? bodyStatistics = null,
-            Exception? failure = null) => new()
-        {
-            Status = status,
-            Choices = source.Recorded,
-            Spans = source.Spans,
-            Value = example,
-            Statistics = bodyStatistics,
-            Exception = failure
-        };
     }
+
+    private readonly record struct BodyOutcome(
+        ExampleStatus Status,
+        ExampleStatistics Statistics,
+        Exception? Exception = null);
 }
