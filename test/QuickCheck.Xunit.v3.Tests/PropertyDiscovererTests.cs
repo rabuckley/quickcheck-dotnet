@@ -25,6 +25,27 @@ public sealed class PropertyDiscovererTests
         [Trait("Category", "Integration")]
         public void Categorised_but_unsupported(Uri uri) => _ = uri;
 
+        [Example(1)]
+        public void Wrong_example_count(int x, string s) => _ = (x, s);
+
+        [Example("nope")]
+        public void Unconvertible_example(int x) => _ = x;
+
+        [Example(300)]
+        public void Out_of_range_example(byte b) => _ = b;
+
+        [Example(null)]
+        public void Null_example_on_a_value_type(int x) => _ = x;
+
+        [Example(3)]
+        public void Narrowing_example(byte b) => Assert.Equal(3, b);
+
+        [Example(null)]
+        public void Null_example(string? s) => Assert.Null(s);
+
+        [Example(0, 0)]
+        public void Pinned(int a, int b) => _ = (a, b);
+
         public static Generator<string> Text => Generate.String();
     }
 
@@ -112,6 +133,49 @@ public sealed class PropertyDiscovererTests
         // Assert
         Assert.StartsWith($"[Property] method Samples.{nameof(Samples.Fine)}: ", testCase.Error);
         Assert.Contains("RunCount", testCase.Error);
+    }
+
+    [Theory]
+    [InlineData(nameof(Samples.Wrong_example_count), "[Example] has 1 value but the method has 2 parameters.")]
+    [InlineData(nameof(Samples.Unconvertible_example), "[Example] parameter 'x' (Int32): cannot use \"nope\".")]
+    [InlineData(nameof(Samples.Out_of_range_example), "[Example] parameter 'b' (Byte): cannot use 300.")]
+    [InlineData(nameof(Samples.Null_example_on_a_value_type), "[Example] parameter 'x' (Int32): cannot use null")]
+    public async Task Discover_WithInvalidExample_ShouldCreateAnErrorTestCaseNamingTheProblem(
+        string method, string expectedMessage)
+    {
+        // Act
+        var testCase = Assert.IsType<PropertyTestCase>(await TestHost.Discover(typeof(Samples), method));
+
+        // Assert
+        Assert.StartsWith($"[Property] method Samples.{method}: ", testCase.Error);
+        Assert.Contains(expectedMessage, testCase.Error);
+    }
+
+    [Theory]
+    [InlineData(nameof(Samples.Narrowing_example))]
+    [InlineData(nameof(Samples.Null_example))]
+    public async Task Discover_WithExampleTheParameterCanHold_ShouldDiscoverCleanly(string method)
+    {
+        // Act
+        var testCase = Assert.IsType<PropertyTestCase>(await TestHost.Discover(typeof(Samples), method));
+
+        // Assert
+        Assert.Null(testCase.Error);
+    }
+
+    [Fact]
+    public async Task Discover_WithReplayAndExample_ShouldReportThemAsIncompatible()
+    {
+        // Arrange
+        var attribute = new PropertyAttribute { Replay = "1:2" };
+
+        // Act
+        var testCase = Assert.IsType<PropertyTestCase>(
+            await TestHost.Discover(typeof(Samples), nameof(Samples.Pinned), attribute));
+
+        // Assert
+        Assert.StartsWith($"[Property] method Samples.{nameof(Samples.Pinned)}: ", testCase.Error);
+        Assert.Contains("would never be checked", testCase.Error);
     }
 
     [Fact]

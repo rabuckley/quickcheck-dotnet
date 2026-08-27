@@ -129,5 +129,10 @@ public sealed class PropertyAttributeTests(ITestOutputHelper output)
     public void Property_WithReplay_ShouldRunTheNamedExample(int x) => _ = x;
 
     [Property]
+    [Example(3)]
+    [Example(-3)]
+    public void Property_WithExplicitExamples_ShouldCheckThemAsWellAsGeneratedOnes(int x) => Assert.Equal(x, x);
+
+    [Property]
     public void Property_WithNoParameters_ShouldStillRun() => Assert.True(true);
 }

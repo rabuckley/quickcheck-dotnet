@@ -39,9 +39,17 @@ public sealed class PropertyDiscoverer : IXunitTestCaseDiscoverer
             generators = attribute.Generators;
             options = attribute.ToCheckOptions();
 
-            // Validation only: the resolved generators cannot be carried on the
-            // test case, which has to survive serialization into the execution
-            // process, so the runner resolves them again.
+            if (options.Replay is not null && testMethod.Method.IsDefined(typeof(ExampleAttribute), inherit: true))
+            {
+                throw new PropertyDefinitionException(
+                    $"{PropertyMethod.Describe(testMethod.Method)}: Replay checks only the example its token "
+                    + "names, so the [Example] pins on this method would never be checked. Keep one or the other.");
+            }
+
+            // Validation only: neither the resolved generators nor the explicit
+            // examples can be carried on the test case, which has to survive
+            // serialization into the execution process, so the runner reads the
+            // method again.
             _ = PropertyMethod.Create(testMethod.Method, generators);
         }
         catch (PropertyDefinitionException exception)
@@ -56,7 +64,7 @@ public sealed class PropertyDiscoverer : IXunitTestCaseDiscoverer
         catch (Exception exception)
         {
             error = $"{PropertyMethod.Describe(testMethod.Method)}: "
-                + $"resolving generators threw {exception.GetType().Name}: {exception.Message}";
+                + $"validating the property threw {exception.GetType().Name}: {exception.Message}";
         }
 
         var testCase = new PropertyTestCase(

@@ -40,6 +40,20 @@ public sealed class PropertyTestCaseTests
         public void Classifies(int x) => Property.Classify(x >= 0, "non-negative");
 
         public void Covers_the_impossible(int x) => Property.Cover(false, 50, "never");
+
+        [Example(0, 0)]
+        public void Divides_with_a_pin(int a, int b) => _ = a / b;
+
+        [Example(1)]
+        [Example(2)]
+        public void Passes_with_pins(int x) => _ = x;
+
+        // Both pins fail, so which one is reported is decided by the canonical
+        // order rather than by whatever order reflection hands the attributes
+        // back in: "x = 2" sorts before "x = 30".
+        [Example(30)]
+        [Example(2)]
+        public void Fails_on_either_pin(int x) => Assert.True(x < 0);
     }
 
     [Fact]
@@ -201,6 +215,53 @@ public sealed class PropertyTestCaseTests
         Assert.Contains("Minimal counterexample: a = 0, b = 0", failed.Messages[0]);
         Assert.Contains("threw System.DivideByZeroException", failed.Messages[0]);
         Assert.Contains(typeof(DivideByZeroException).FullName, failed.ExceptionTypes);
+    }
+
+    [Fact]
+    public async Task PropertyTestCase_WithFailingExplicitExample_ShouldFailReportingItAsGiven()
+    {
+        // Arrange
+        var attribute = new PropertyAttribute { Seed = 4 };
+
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Divides_with_a_pin), attribute);
+
+        // Assert
+        var failed = Assert.Single(messages.OfType<ITestFailed>());
+        Assert.Contains("Falsified by an explicit example (seed 4).", failed.Messages[0]);
+        Assert.Contains("Counterexample: a = 0, b = 0", failed.Messages[0]);
+        Assert.Contains("threw System.DivideByZeroException", failed.Messages[0]);
+        Assert.DoesNotContain("Replay with", failed.Messages[0]);
+        Assert.Empty(messages.OfType<ITestPassed>());
+    }
+
+    [Fact]
+    public async Task PropertyTestCase_WithSeveralFailingExplicitExamples_ShouldReportTheFirstInCanonicalOrder()
+    {
+        // Arrange
+        var attribute = new PropertyAttribute { Seed = 4 };
+
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Fails_on_either_pin), attribute);
+
+        // Assert
+        var failed = Assert.Single(messages.OfType<ITestFailed>());
+        Assert.Contains("Counterexample: x = 2", failed.Messages[0]);
+        Assert.DoesNotContain("Counterexample: x = 30", failed.Messages[0]);
+    }
+
+    [Fact]
+    public async Task PropertyTestCase_WithPassingExplicitExamples_ShouldCountThemInTheTestOutput()
+    {
+        // Arrange
+        var attribute = new PropertyAttribute { RunCount = 20, Seed = 4 };
+
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Passes_with_pins), attribute);
+
+        // Assert
+        var passed = Assert.Single(messages.OfType<ITestPassed>());
+        Assert.Contains("Passed 20 tests and 2 explicit examples (seed 4).", passed.Output);
     }
 
     [Fact]

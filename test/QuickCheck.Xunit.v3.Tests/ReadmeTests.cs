@@ -1,5 +1,7 @@
 using System.Runtime.InteropServices;
+using QuickCheck.Xunit.Tests.Harness;
 using Xunit;
+using Xunit.Sdk;
 
 namespace QuickCheck.Xunit.Tests;
 
@@ -21,6 +23,27 @@ public sealed class ReadmeTests
 
     private static Generator<int> Small { get; } = Generate.Between(-10, 10);
 
+    /// <summary>
+    /// The readme's [Example] sample is a property that fails on its pin, so it
+    /// runs through the adapter's harness rather than as a test of its own.
+    /// </summary>
+    private sealed class Samples
+    {
+        [Example(0, 0)]
+        public void Division_is_total(int a, int b) => _ = a / b;
+    }
+
+    [Fact]
+    public async Task Division_is_total_fails_on_its_explicit_example()
+    {
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Division_is_total));
+
+        // Assert
+        var failed = Assert.Single(messages.OfType<ITestFailed>());
+        Assert.Contains("Falsified by an explicit example", failed.Messages[0]);
+        Assert.Contains("Counterexample: a = 0, b = 0", failed.Messages[0]);
+    }
 
     [Property]
     public void Round_trips(string s) => Assert.Equal(s, Decode(Encode(s)));

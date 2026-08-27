@@ -42,6 +42,22 @@ A method may return `void`, `bool`, `Task`, `ValueTask`, `Task<bool>`, or `Value
 
 You can also use `Property.ForAll` inside an ordinary `[Fact]` test.
 
+### Explicit examples
+
+`[Example]` pins one argument list the property is always checked on, whatever the generators produce. Add as many as you like; they are checked before anything is generated and the first to fail ends the test.
+
+```csharp
+[Property]
+[Example(0, 0)]
+public void Division_is_total(int a, int b) => _ = a / b;
+```
+
+This is how you keep a found bug checked. A `Replay` token names an example by its position in a random stream, so it points at a different input as soon as a generator changes shape, where a pinned argument list does not. The two are mutually exclusive: `Replay` checks only the example its token names, so it would leave the pins unchecked. `[Property(Replay = …)]` on a method that also has `[Example]` is reported as a discovery error, on the test's own node; the same combination through the core's `CheckOptions.Replay` throws `ArgumentException`.
+
+A pinned example is checked on top of `RunCount` rather than out of it, contributes nothing to the `Classify` statistics, and is skipped (and reported as skipped in the test output) when the body calls `Property.Assume`. One that fails is reported as written, unshrunk, since there are no generator choices behind a literal to reduce. Reflection does not order attributes, so pins are checked in a canonical order derived from their values rather than the order they are written, and a method whose pins fail reports the same one on every machine and runtime.
+
+Each value must be assignable to its parameter, or convertible to it by `Convert.ChangeType`: `[Example(3)]` works on a `byte` parameter and `[Example(300)]` is rejected at discovery, and an enum parameter takes its underlying integral value. Attribute arguments have to be compile-time constants, so a `decimal`, `DateTime` or `Guid` parameter cannot be pinned this way; use `Property.ForAll(…).Example(…)` in a `[Fact]` for those.
+
 ## Where generators come from
 
 A parameter's generator is found, in order, from:
@@ -82,7 +98,7 @@ public sealed class AccountTests
 | ------------------- | --------- | -------------------------------------------------------------------------------------------------- |
 | `RunCount`          | 100       | Examples to try before passing.                                                                    |
 | `Seed`              | random    | Fixes the example sequence.                                                                        |
-| `Replay`            | none      | A token from a failure report, for example `"3468194371:11"`; runs only that example.              |
+| `Replay`            | none      | A token from a failure report, for example `"3468194371:11"`; runs only that example. Not allowed with `[Example]`; see [Explicit examples](#explicit-examples). |
 | `MaxShrinkAttempts` | 10,000    | Candidates the shrinker may try; 0 disables shrinking.                                             |
 | `MaxShrinkWork`     | 5,000,000 | Total choices shrinking may replay.                                                                |
 | `CheckCoverage`     | false     | Fails the test when a `Property.Cover` requirement is known to be missed; see [Reports](#reports). |
