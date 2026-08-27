@@ -3,7 +3,10 @@ using QuickCheck.Choices;
 namespace QuickCheck.Running;
 
 /// <summary>
-/// Runs a property's body on one generated example, recording it as an <see cref="ExampleRun{T}"/>.
+/// Runs a property's body on one example, generated or explicit, recording it as an
+/// <see cref="ExampleRun{T}"/>. Every invocation of a property body goes through here, so the
+/// statistics sink is installed and the discard, cancellation and failure ladder is applied in one
+/// place.
 /// </summary>
 internal static class ExampleRun
 {
@@ -45,6 +48,33 @@ internal static class ExampleRun
             Status = outcome.Status,
             Choices = source.Recorded,
             Spans = source.Spans,
+            Value = value,
+            Statistics = outcome.Statistics,
+            Exception = outcome.Exception
+        };
+    }
+
+    /// <summary>
+    /// Runs <paramref name="body"/> on an explicit example, a value the caller supplied rather than
+    /// one a generator produced.
+    /// </summary>
+    /// <remarks>
+    /// The run carries no choices, because no generator made any. That makes it unshrinkable — a
+    /// <see cref="Shrinker{T}"/> given one would report convergence having tried nothing — so an
+    /// explicit failure is reported as given instead of being shrunk.
+    /// </remarks>
+    public static async ValueTask<ExampleRun<T>> ExecuteAsync<T>(
+        T value,
+        Func<T, ValueTask<bool>> body,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await RunBodyAsync(value, body, cancellationToken).ConfigureAwait(false);
+
+        return new ExampleRun<T>
+        {
+            Status = outcome.Status,
+            Choices = [],
+            Spans = [],
             Value = value,
             Statistics = outcome.Statistics,
             Exception = outcome.Exception

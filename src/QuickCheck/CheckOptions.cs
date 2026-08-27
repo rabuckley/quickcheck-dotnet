@@ -12,9 +12,10 @@ public sealed record CheckOptions
     public static CheckOptions Default { get; } = new();
 
     /// <summary>
-    /// Gets the number of examples that must pass before the property is reported as passed. When
-    /// <see cref="CoverageConfidence"/> is set it is the fewest that must pass; the check may run
-    /// longer. The default is 100.
+    /// Gets the number of generated examples that must pass before the property is reported as
+    /// passed. When <see cref="CoverageConfidence"/> is set it is the fewest that must pass; the
+    /// check may run longer. Examples pinned with <see cref="Property{T}.Example"/> are checked on
+    /// top of this count rather than out of it. The default is 100.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// The value is less than or equal to zero.
@@ -39,7 +40,9 @@ public sealed record CheckOptions
     /// <summary>
     /// Gets the token identifying the single example to check, as reported by an earlier failure, or
     /// <see langword="null"/> to generate examples as usual. A replayed example is shrunk in the same
-    /// way as a freshly generated failure.
+    /// way as a freshly generated failure. A property with examples pinned by
+    /// <see cref="Property{T}.Example"/> cannot be replayed, because a replay would leave those
+    /// examples unchecked.
     /// </summary>
     public Replay? Replay { get; init; }
 

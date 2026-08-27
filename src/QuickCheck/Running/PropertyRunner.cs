@@ -4,9 +4,10 @@ using QuickCheck.Choices;
 namespace QuickCheck.Running;
 
 /// <summary>
-/// The check loop shared by <see cref="Property{T}"/> and <see cref="AsyncProperty{T}"/>:
-/// generates examples, runs the body on each, and shrinks the first failure. It is written against
-/// an asynchronous body so that a synchronous property completes without ever yielding.
+/// The check loop shared by <see cref="Property{T}"/> and <see cref="AsyncProperty{T}"/>: drains
+/// the explicit examples, then generates examples, runs the body on each, and shrinks the first
+/// generated failure. It is written against an asynchronous body so that a synchronous property
+/// completes without ever yielding.
 /// </summary>
 internal sealed class PropertyRunner<T>
 {
@@ -26,9 +27,10 @@ internal sealed class PropertyRunner<T>
     /// The loop awaits nothing but the body, so a body that completes synchronously leaves the whole
     /// check complete by the time <see cref="CheckAsync"/> returns.
     /// </remarks>
-    public PropertyResult<T> Check(CheckOptions options, CancellationToken cancellationToken)
+    public PropertyResult<T> Check(
+        CheckOptions options, IReadOnlyList<T> examples, CancellationToken cancellationToken)
     {
-        var check = CheckAsync(options, cancellationToken);
+        var check = CheckAsync(options, examples, cancellationToken);
 
         if (!check.IsCompleted)
         {
@@ -38,7 +40,26 @@ internal sealed class PropertyRunner<T>
         return check.GetAwaiter().GetResult();
     }
 
-    public async ValueTask<PropertyResult<T>> CheckAsync(CheckOptions options, CancellationToken cancellationToken)
+    /// <exception cref="ArgumentException">
+    /// <paramref name="options"/> sets <see cref="CheckOptions.Replay"/> and
+    /// <paramref name="examples"/> is not empty.
+    /// </exception>
+    public ValueTask<PropertyResult<T>> CheckAsync(
+        CheckOptions options, IReadOnlyList<T> examples, CancellationToken cancellationToken)
+    {
+        if (options.Replay is not null && examples.Count > 0)
+        {
+            throw new ArgumentException(
+                "Replay checks only the example its token names, so the property's pinned examples "
+                + "would never be checked. Keep one or the other.",
+                nameof(options));
+        }
+
+        return RunAsync(options, examples, cancellationToken);
+    }
+
+    private async ValueTask<PropertyResult<T>> RunAsync(
+        CheckOptions options, IReadOnlyList<T> examples, CancellationToken cancellationToken)
     {
         if (options.Replay is { } replay)
         {
@@ -50,7 +71,36 @@ internal sealed class PropertyRunner<T>
         var passed = 0;
         var discards = 0;
         var looks = 0;
+        var explicitExamples = ExplicitExampleCounts.None;
         var statistics = new RunStatistics();
+
+        foreach (var value in examples)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var pinned = await ExampleRun.ExecuteAsync(value, _body, cancellationToken).ConfigureAwait(false);
+
+            switch (pinned.Status)
+            {
+                case ExampleStatus.Passed:
+                    // Counted apart from `passed`, so a pin neither shortens the generated run nor
+                    // contributes to the percentages, whose denominator is TestsRun.
+                    explicitExamples = explicitExamples with { Run = explicitExamples.Run + 1 };
+                    break;
+
+                case ExampleStatus.Discarded:
+                    explicitExamples = explicitExamples with { Discarded = explicitExamples.Discarded + 1 };
+                    break;
+
+                case ExampleStatus.Failed:
+                    // Built here rather than through FalsifyAsync: an explicit example carries no
+                    // choices, so there is nothing for the shrinker to reduce.
+                    return PropertyResult.FalsifiedByExample(
+                        seed,
+                        explicitExamples,
+                        new Counterexample<T>(pinned.Value, pinned.Exception, isExplicit: true));
+            }
+        }
 
         // With a coverage confidence the loop has no fixed length: it ends when the coverage is
         // decided, and is bounded by cancellation rather than by the counters.
@@ -73,7 +123,7 @@ internal sealed class PropertyRunner<T>
                     {
                         if (passed == options.RunCount)
                         {
-                            return PropertyResult.Passed<T>(seed, passed, discards, Snapshot());
+                            return PropertyResult.Passed<T>(seed, passed, discards, explicitExamples, Snapshot());
                         }
 
                         break;
@@ -96,13 +146,14 @@ internal sealed class PropertyRunner<T>
                     if (passed >= options.RunCount
                         && Array.TrueForAll(verdicts, static verdict => verdict == CoverageVerdict.Met))
                     {
-                        return PropertyResult.Passed<T>(seed, passed, discards, statistics.ToPropertyStatistics(look));
+                        return PropertyResult.Passed<T>(
+                            seed, passed, discards, explicitExamples, statistics.ToPropertyStatistics(look));
                     }
 
                     if (Array.Exists(verdicts, static verdict => verdict == CoverageVerdict.Unmet))
                     {
                         return PropertyResult.InsufficientCoverage<T>(
-                            seed, passed, discards, statistics.ToPropertyStatistics(look));
+                            seed, passed, discards, explicitExamples, statistics.ToPropertyStatistics(look));
                     }
 
                     break;
@@ -114,7 +165,7 @@ internal sealed class PropertyRunner<T>
                     // by a discard rate the RunCount examples would have tolerated.
                     if (discards > (long)options.MaxDiscardRatio * Math.Max(passed, options.RunCount))
                     {
-                        return PropertyResult.Exhausted<T>(seed, passed, discards, Snapshot());
+                        return PropertyResult.Exhausted<T>(seed, passed, discards, explicitExamples, Snapshot());
                     }
 
                     break;
@@ -125,6 +176,7 @@ internal sealed class PropertyRunner<T>
                         new Replay(seed, run),
                         passed,
                         discards,
+                        explicitExamples,
                         Snapshot(),
                         options,
                         cancellationToken).ConfigureAwait(false);
@@ -138,9 +190,7 @@ internal sealed class PropertyRunner<T>
     }
 
     private async ValueTask<PropertyResult<T>> CheckSingleAsync(
-        Replay replay,
-        CheckOptions options,
-        CancellationToken cancellationToken)
+        Replay replay, CheckOptions options, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -158,12 +208,18 @@ internal sealed class PropertyRunner<T>
                 replay,
                 testsRun: 0,
                 discards: 0,
+                ExplicitExampleCounts.None,
                 PropertyStatistics.Empty,
                 options,
                 cancellationToken).ConfigureAwait(false),
             ExampleStatus.Passed => PropertyResult.Passed<T>(
-                replay.Seed, testsRun: 1, discards: 0, SingleExampleStatistics(example.Statistics!)),
-            _ => PropertyResult.Exhausted<T>(replay.Seed, testsRun: 0, discards: 1, PropertyStatistics.Empty)
+                replay.Seed,
+                testsRun: 1,
+                discards: 0,
+                ExplicitExampleCounts.None,
+                SingleExampleStatistics(example.Statistics!)),
+            _ => PropertyResult.Exhausted<T>(
+                replay.Seed, testsRun: 0, discards: 1, ExplicitExampleCounts.None, PropertyStatistics.Empty)
         };
 
         static PropertyStatistics SingleExampleStatistics(ExampleStatistics example)
@@ -179,6 +235,7 @@ internal sealed class PropertyRunner<T>
         Replay replay,
         int testsRun,
         int discards,
+        ExplicitExampleCounts explicitExamples,
         PropertyStatistics statistics,
         CheckOptions options,
         CancellationToken cancellationToken)
@@ -190,8 +247,9 @@ internal sealed class PropertyRunner<T>
             replay.Seed,
             testsRun,
             discards,
-            new Counterexample<T>(failure.Value, failure.Exception),
-            new Counterexample<T>(outcome.Minimal.Value, outcome.Minimal.Exception),
+            explicitExamples,
+            new Counterexample<T>(failure.Value, failure.Exception, isExplicit: false),
+            new Counterexample<T>(outcome.Minimal.Value, outcome.Minimal.Exception, isExplicit: false),
             replay,
             outcome.Attempts,
             outcome.Shrinks,

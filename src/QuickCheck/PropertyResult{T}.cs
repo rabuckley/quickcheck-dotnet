@@ -29,6 +29,14 @@ public sealed class PropertyResult<T>
     /// <summary>Gets the number of examples discarded by assumptions and filters.</summary>
     public required int Discards { get; init; }
 
+    /// <summary>The number of explicit examples that were checked and passed.</summary>
+    internal int ExplicitExamplesRun { get; init; }
+
+    /// <summary>
+    /// The number of explicit examples discarded by an assumption and so not checked.
+    /// </summary>
+    internal int ExplicitExamplesDiscarded { get; init; }
+
     /// <summary>
     /// Gets the first falsifying example found, before shrinking, or <see langword="null"/> if the
     /// property was not falsified.
@@ -42,8 +50,9 @@ public sealed class PropertyResult<T>
     public Counterexample<T>? Minimal { get; init; }
 
     /// <summary>
-    /// Gets the token that reproduces the failing example through <see cref="CheckOptions.Replay"/>, or
-    /// <see langword="null"/> if the property was not falsified.
+    /// Gets the token that reproduces the failing example through <see cref="CheckOptions.Replay"/>,
+    /// or <see langword="null"/> if the property was not falsified or the failing example was a
+    /// pinned one; see <see cref="Counterexample{T}.IsExplicit"/>.
     /// </summary>
     public Replay? Replay { get; init; }
 
@@ -70,7 +79,7 @@ public sealed class PropertyResult<T>
     public PropertyStatistics Statistics { get; init; } = PropertyStatistics.Empty;
 
     /// <summary>Gets a value indicating whether an example falsified the property.</summary>
-    [MemberNotNullWhen(true, nameof(Original), nameof(Minimal), nameof(Replay))]
+    [MemberNotNullWhen(true, nameof(Original), nameof(Minimal))]
     public bool IsFalsified => Outcome is PropertyOutcome.Falsified;
 
     /// <summary>
@@ -126,31 +135,51 @@ public sealed class PropertyResult<T>
         {
             case PropertyOutcome.Passed:
                 report.Append($"Passed {TestsRun} tests");
+                AppendExplicitExamples(report);
                 AppendDiscards(report);
                 report.Append($" (seed {Seed}).");
+                AppendDiscardedExamples(report);
                 AppendShortfalls(report);
                 AppendStatistics(report);
                 break;
 
             case PropertyOutcome.InsufficientCoverage:
                 report.Append($"Insufficient coverage after {TestsRun} tests");
+                AppendExplicitExamples(report);
                 AppendDiscards(report);
                 report.Append($" (seed {Seed}).");
+                AppendDiscardedExamples(report);
                 AppendShortfalls(report);
                 AppendStatistics(report);
                 break;
 
             case PropertyOutcome.Exhausted:
                 report.Append($"Gave up after {TestsRun} tests");
+                AppendExplicitExamples(report);
                 AppendDiscards(report);
 
                 report.Append($" (seed {Seed}). Too many examples were discarded; ")
                     .Append("prefer generators that only produce valid inputs over Assume/Where.");
 
+                AppendDiscardedExamples(report);
+
+                break;
+
+            // An explicit failure needs its own headline because the generated one counts the tests
+            // that led up to the failure, and an explicit example runs before any of them.
+            case PropertyOutcome.Falsified when Minimal is { IsExplicit: true }:
+                report.Append($"Falsified by an explicit example (seed {Seed}).");
+                AppendDiscardedExamples(report);
+                report.AppendLine();
+                report.Append("  Counterexample: ").Append(Minimal);
+                AppendException(report, Minimal!.Exception);
+                report.AppendLine();
+                report.Append("  An explicit example is checked as given, so it was not shrunk.");
                 break;
 
             case PropertyOutcome.Falsified:
                 report.Append($"Falsified after {TestsRun + 1} tests and {Shrinks} shrinks (seed {Seed}).");
+                AppendDiscardedExamples(report);
                 report.AppendLine();
                 report.Append("  Minimal counterexample: ").Append(Minimal);
                 AppendException(report, Minimal!.Exception);
@@ -188,6 +217,34 @@ public sealed class PropertyResult<T>
                 builder.Append($" with {Discards} discards");
             }
         }
+
+        void AppendExplicitExamples(StringBuilder builder)
+        {
+            if (ExplicitExamplesRun > 0)
+            {
+                builder.Append(" and ").Append(ExplicitExamplesRun).Append(Examples(ExplicitExamplesRun));
+            }
+        }
+
+        // Called from every branch, not just the passing one, so a pin that has quietly stopped
+        // being checked stays visible in the reports someone reads most closely.
+        void AppendDiscardedExamples(StringBuilder builder)
+        {
+            if (ExplicitExamplesDiscarded > 0)
+            {
+                builder.AppendLine();
+
+                builder.Append("  ")
+                    .Append(ExplicitExamplesDiscarded)
+                    .Append(Examples(ExplicitExamplesDiscarded))
+                    .Append(Was(ExplicitExamplesDiscarded))
+                    .Append(" discarded by an assumption and not checked.");
+            }
+        }
+
+        static string Examples(int count) => count == 1 ? " explicit example" : " explicit examples";
+
+        static string Was(int count) => count == 1 ? " was" : " were";
 
         void AppendShortfalls(StringBuilder builder)
         {

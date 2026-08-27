@@ -194,6 +194,23 @@ public sealed class ReadmeTests
     }
 
     [Fact]
+    public void ReadmeSample_WithExplicitExample_ShouldFailOnThePinnedValueWithoutShrinkingIt()
+    {
+        // Arrange
+        var property = Property
+            .ForAll(Generate.Integer<int>(), Generate.Integer<int>(), (a, b) => _ = a / b)
+            .Example((0, 0));
+
+        // Act
+        var exception = Assert.Throws<PropertyFailedException>(() => property.Assert());
+
+        // Assert
+        Assert.IsType<DivideByZeroException>(exception.InnerException);
+        Assert.Contains("Falsified by an explicit example", exception.Message);
+        Assert.Contains("Counterexample: (0, 0)", exception.Message);
+    }
+
+    [Fact]
     public void ReadmeSample_WithReplayToken_ShouldRerunTheCounterexample()
     {
         // Arrange

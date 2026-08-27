@@ -223,6 +223,31 @@ Two ways to run a property:
 
 `Property.Assume(condition)` discards the current example when a precondition does not hold. Prefer a generator that only produces valid inputs. Note that a property that discards too much is reported as `Exhausted` rather than passing on only a few examples.
 
+### Explicit examples
+
+`Example(value)` pins a value the property is always checked on, whatever the generators produce. Pinned values are checked first, in the order you add them, and the first one to fail ends the check.
+
+```csharp
+Property
+    .ForAll(Generate.Integer<int>(), Generate.Integer<int>(), (a, b) => _ = a / b)
+    .Example((0, 0))
+    .Assert();
+```
+
+This is how you keep a found bug checked. A replay token names an example by its position in a seeded stream, so it points at a different input as soon as a generator changes shape: add an edge value, widen a range, or reorder two draws, and the test keeps passing without ever checking the bug it was written for. A pinned value keeps testing the input the failure was found on. A property over several generators is a property over a tuple, so pin a tuple.
+
+A report formats its counterexample for reading, not for pasting. Integers, `bool`, `char`, strings, tuples and collections print as C# you can copy into `Example` as it stands. A record, `DateTime` or `decimal` does not, and neither do the floating-point edges: `NaN` and the infinities print as `NaN`, `Infinity` and `-Infinity`, and `-0.0` prints as `-0`, which reads back as positive zero. Write the literal yourself for those.
+
+An explicit example:
+
+- is checked on top of `RunCount` rather than out of it, so pinning one never shortens the generated run;
+- is reported as given if it fails, unshrunk (there are no choices behind a literal for the shrinker to reduce) and with no replay token, so `result.Replay` is null and `result.TestsRun` is 0; `result.IsFalsified && result.Minimal.IsExplicit` is how you tell that failure from a generated one;
+- contributes nothing to the `Classify` statistics;
+- is skipped, and reported as skipped, when `Property.Assume` discards it;
+- is never checked against the generator, so it may be a value the generator's range excludes.
+
+`CheckOptions.Replay` and pinned values are mutually exclusive: a replay checks only the example its token names, so `Check` throws `ArgumentException` rather than leave the pins unchecked.
+
 ### Options
 
 Configure via `CheckOptions`. Only set what you need:
@@ -258,6 +283,8 @@ Every check has a seed which is printed in the report. The same seed produces th
 ```csharp
 Property.ForAll(generator, body).Assert(new CheckOptions { Replay = Replay.Parse("3468194371:11") });
 ```
+
+A token is only good for as long as every generator in the property draws the same choices in the same order, so it is a way to look at a failure now, not a way to keep checking it. To pin a failure for good, pin the failing input with [`Example`](#explicit-examples) instead.
 
 ## Statistics
 
