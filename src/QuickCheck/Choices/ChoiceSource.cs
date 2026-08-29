@@ -86,10 +86,15 @@ public sealed class ChoiceSource
         {
             var start = _openSpans.Pop();
 
-            // Empty spans carry no structure worth deleting.
-            if (_recorded.Count > start)
+            // Empty spans carry no structure worth deleting, and a wrapper whose body is one draw
+            // of an inner generator (Select, Deferred, a filter whose first candidate passes)
+            // closes on the bounds the inner span just closed on; one span carries the structure
+            // of both, and a second only costs the shrinker repeated attempts.
+            var span = new ChoiceSpan(start, _recorded.Count);
+
+            if (_recorded.Count > start && (_spans.Count == 0 || _spans[^1] != span))
             {
-                _spans.Add(new ChoiceSpan(start, _recorded.Count));
+                _spans.Add(span);
             }
         }
     }

@@ -38,6 +38,24 @@ public sealed class ChoiceSourceTests
     }
 
     [Fact]
+    public void Draw_WithAWrapperAroundOneInnerDraw_ShouldRecordOneSpanForBoth()
+    {
+        // Arrange
+        // Each member is one choice wrapped in a Select, which closes on the same bounds as the
+        // choice it wraps; the pair around both members is the only span that adds structure.
+        var member = Generate.Between(0, 10).Select(static x => x + 1);
+        var pair = Generate.Tuple(member, member);
+        var source = ChoiceSource.FromRandom(Xoshiro256StarStar.ForRun(seed: 1, run: 0));
+
+        // Act
+        source.Draw(pair);
+
+        // Assert
+        Assert.Equal(2, source.Recorded.Count);
+        Assert.Equal([new ChoiceSpan(0, 1), new ChoiceSpan(1, 2), new ChoiceSpan(0, 2)], source.Spans);
+    }
+
+    [Fact]
     public void SampleEdge_ShouldRollOnlyWhenGeneratingAndConsumeNoChoice()
     {
         // Arrange
