@@ -6,8 +6,7 @@ namespace QuickCheck.Xunit;
 /// <summary>
 /// The generator plumbing the resolver needs to work from reflected parameter types: generic
 /// <see cref="Generate"/> operations invoked with a runtime <see cref="Type"/> argument, each
-/// public method mirroring a private generic implementation below it, plus
-/// <see cref="Sequence"/> over the already-boxed generators of a method's arguments.
+/// public method mirroring a private generic implementation below it.
 /// </summary>
 internal static class GeneratorReflection
 {
@@ -64,23 +63,6 @@ internal static class GeneratorReflection
 
     public static object Construct(Type type, ConstructorInfo constructor, Generator<object?>[] arguments) =>
         Invoke(nameof(ConstructOf), type, constructor, arguments);
-
-    /// <summary>
-    /// A generator that draws from each of <paramref name="generators"/> in turn, so that the
-    /// shrinker sees one span per element and can shrink them independently.
-    /// </summary>
-    public static Generator<object?[]> Sequence(Generator<object?>[] generators) =>
-        Generate.From(source =>
-        {
-            var values = new object?[generators.Length];
-
-            for (var i = 0; i < generators.Length; i++)
-            {
-                values[i] = source.Draw(generators[i]);
-            }
-
-            return values;
-        });
 
     private static object Invoke(string name, Type typeArgument, params object?[] arguments) =>
         Invoke(name, [typeArgument], arguments);
@@ -155,7 +137,7 @@ internal static class GeneratorReflection
     private static Generator<T[]> EmptyArrayOf<T>() => Generate.Constant(System.Array.Empty<T>());
 
     private static Generator<T> ConstructOf<T>(ConstructorInfo constructor, Generator<object?>[] arguments) =>
-        Sequence(arguments).Select(values =>
+        Generate.Sequence(arguments).Select(values =>
         {
             try
             {

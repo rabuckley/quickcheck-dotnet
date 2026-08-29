@@ -111,7 +111,7 @@ internal sealed class PropertyMethod
             argumentGenerators[i] = GeneratorResolver.ForParameter(parameter, generators, method.DeclaringType!);
         }
 
-        return GeneratorReflection.Sequence(argumentGenerators)
+        return Generate.Sequence(argumentGenerators)
             .Select(values => new PropertyArguments(names, values));
     }
 
