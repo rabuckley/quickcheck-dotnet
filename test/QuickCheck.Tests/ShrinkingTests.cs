@@ -154,7 +154,27 @@ public sealed class ShrinkingTests
 
         // Assert
         Assert.True(result.IsFalsified);
-        Assert.Equal(100, result.Minimal.Value.Item1 + result.Minimal.Value.Item2);
+        Assert.Equal((0, 100), result.Minimal.Value);
+    }
+
+    [Fact]
+    public void Shrinking_WithATripleRelatedAcrossAMember_ShouldShrinkTheOuterPairJointly()
+    {
+        // Arrange
+        // The string between the pair shrinks to a single guard choice, which leaves the pair
+        // within the redistribution window.
+        var property = Property.ForAll(
+            Generate.Between(0, 1000),
+            Generate.String(),
+            Generate.Between(0, 1000),
+            static (a, _, c) => a + c < 100);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal((0, "", 100), result.Minimal.Value);
     }
 
     [Fact]
