@@ -9,6 +9,8 @@ public sealed class ReadmeTests
 {
     private readonly record struct Money(long Amount, string Currency);
 
+    private readonly record struct Interval(int Low, int High);
+
     private readonly record struct Price(decimal Amount) : IArbitrary<Price>
     {
         public static Generator<Price> Arbitrary { get; } =
@@ -23,8 +25,8 @@ public sealed class ReadmeTests
 
     private static Generator<Expression> Expressions() => Generate.Frequency(
         (3, Generate.Integer<int>().Select(Expression (value) => new Literal(value))),
-        (1, Generate.Deferred(() => Generate.Tuple(Expressions(), Expressions()))
-            .Select(Expression (pair) => new Add(pair.Item1, pair.Item2))));
+        (1, Generate.Deferred(() => Generate.Build(
+            Expressions(), Expressions(), Expression (left, right) => new Add(left, right)))));
 
     [Fact]
     public void ReadmeSample_WithReverseTwice_ShouldBeTheIdentity()
@@ -61,8 +63,10 @@ public sealed class ReadmeTests
     public void ReadmeSample_WithCustomGeneratorsAndMultiArgumentProperties_ShouldPass()
     {
         // Arrange
-        Generator<Money> money = Generate.From(source =>
-            new Money(source.Draw(Generate.Between(0L, 1_000_000L)), source.Draw(Generate.Elements("GBP", "USD"))));
+        Generator<Money> money = Generate.Build(
+            Generate.Between(0L, 1_000_000L),
+            Generate.Elements("GBP", "USD"),
+            (amount, currency) => new Money(amount, currency));
 
         var evens = Generate.Integer<int>().Select(x => x * 2);
         var maybe = Generate.String().OrNull();
@@ -78,6 +82,33 @@ public sealed class ReadmeTests
 
         Property.ForAll(evens, maybe, maybeInt, (e, s, i) => e % 2 == 0).Assert();
         Assert.All(either.Sample(20), x => Assert.InRange(x, 1, 2));
+    }
+
+    [Fact]
+    public void ReadmeSample_WithARelationBetweenMembersAndADependentDraw_ShouldRespectBoth()
+    {
+        // Arrange
+        Generator<Interval> intervals = Generate.Tuple(Generate.Between(0, 100), Generate.Between(0, 100))
+            .Where(pair => pair.Item1 <= pair.Item2)
+            .Select(pair => new Interval(pair.Item1, pair.Item2));
+
+        Generator<Money> roundMoney = Generate.From(source =>
+        {
+            var currency = source.Draw(Generate.Elements("GBP", "JPY"));
+            var unit = currency == "JPY" ? 1L : 100L;
+            return new Money(unit * source.Draw(Generate.Between(0L, 10_000L)), currency);
+        });
+
+        // Act
+        var sampledIntervals = intervals.Sample(count: 200, seed: 1);
+        var sampledMoney = roundMoney.Sample(count: 200, seed: 2);
+        var minimal = Property.ForAll(intervals, static interval => interval.High < 50).Check(new CheckOptions { Seed = 3 }).Minimal!.Value;
+
+        // Assert
+        Assert.All(sampledIntervals, static interval => Assert.True(interval.Low <= interval.High));
+        Assert.All(sampledMoney, static money => Assert.Equal(0, money.Amount % (money.Currency == "JPY" ? 1 : 100)));
+        Assert.Contains(sampledMoney, static money => money.Currency == "JPY");
+        Assert.Equal(new Interval(0, 50), minimal);
     }
 
     [Fact]

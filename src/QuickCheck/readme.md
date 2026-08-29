@@ -33,7 +33,7 @@ public void Reversing_twice_is_the_identity()
 }
 ```
 
-The test incodes the property that _for all lists of integers, reversing twice gives back the original._ Each run tries 100 generated lists, including empty, long and full of extreme values.
+The test encodes the property that _for all lists of integers, reversing twice gives back the original._ Each run tries 100 generated lists, including empty, long and full of extreme values.
 
 When a property test fails the input that broke it is often large and contains irrelevant detail so QuickCheck shrinks it and reports the smallest input it can find that still fails:
 
@@ -63,6 +63,8 @@ Generate.Enum<DayOfWeek>()
 Generate.OneOf(genA, genB)          // pick a generator uniformly
 Generate.Frequency((9, common), (1, rare))
 Generate.Tuple(genA, genB)
+Generate.Build(genA, genB, (a, b) => new Foo(a, b))   // one value from each, combined; two to eight generators
+Generate.Sequence(genA, genB)       // one value from each, as an array; any number of generators of one type
 Generate.Dictionary(keys, values)   // distinct keys; see Collection sizes
 Generate.DateTime()                 // mostly 1900-2100, often round times, sometimes the bounds; DateTime(min, max) for a range
 Generate.DateOnly()                 // mostly 1900-2100, sometimes the bounds
@@ -97,14 +99,37 @@ var slices =
 
 ### Custom types
 
-Build a generator for your own types out of existing ones. `Generate.From` hands you a `ChoiceSource` to draw from:
+Build a generator for your own types out of generators for their members. `Generate.Build` draws one value from each member generator, in order, and passes them to a function:
 
 ```csharp
-Generator<Money> money = Generate.From(source =>
-    new Money(source.Draw(Generate.Between(0L, 1_000_000L)), source.Draw(Generate.Elements("GBP", "USD"))));
+Generator<Money> money = Generate.Build(
+    Generate.Between(0L, 1_000_000L),
+    Generate.Elements("GBP", "USD"),
+    (amount, currency) => new Money(amount, currency));
 ```
 
-You get shrinking here for free. Shrinking works on the choices drawn from the `ChoiceSource`, not on the resulting value so needs no knowledge of `Money` here (see [How shrinking works](#how-shrinking-works)).
+Overloads take two to eight generators. For more, nest a `Build`, or use `Generate.Sequence`, which draws one value from each of any number of generators of one type into an array.
+
+The members are drawn independently. When a relation ties two of them together, such as a lower bound that must not exceed an upper bound, filter the pair before building it rather than guarding in the constructor, so that the shrinker never proposes a pair the type refuses:
+
+```csharp
+Generator<Interval> intervals = Generate.Tuple(Generate.Between(0, 100), Generate.Between(0, 100))
+    .Where(pair => pair.Item1 <= pair.Item2)
+    .Select(pair => new Interval(pair.Item1, pair.Item2));
+```
+
+When a later draw depends on an earlier value, `Generate.From` hands you a `ChoiceSource` to draw from in whatever order the type needs:
+
+```csharp
+Generator<Money> roundMoney = Generate.From(source =>
+{
+    var currency = source.Draw(Generate.Elements("GBP", "JPY"));
+    var unit = currency == "JPY" ? 1L : 100L;
+    return new Money(unit * source.Draw(Generate.Between(0L, 10_000L)), currency);
+});
+```
+
+You get shrinking here for free. Shrinking works on the choices drawn from the `ChoiceSource`, not on the resulting value, so it needs no knowledge of `Money` (see [How shrinking works](#how-shrinking-works)).
 
 A type can declare its own default generator by implementing `IArbitrary<T>`, a single static `Arbitrary` property. That gives the generator a conventional home (`Property.ForAll(Money.Arbitrary, ...)`), and the xUnit adapter picks it up for parameters of that type:
 
@@ -127,8 +152,8 @@ sealed record Add(Expression Left, Expression Right) : Expression;
 
 static Generator<Expression> Expressions() => Generate.Frequency(
     (3, Generate.Integer<int>().Select(Expression (value) => new Literal(value))),
-    (1, Generate.Deferred(() => Generate.Tuple(Expressions(), Expressions()))
-            .Select(Expression (pair) => new Add(pair.Item1, pair.Item2))));
+    (1, Generate.Deferred(() => Generate.Build(
+            Expressions(), Expressions(), Expression (left, right) => new Add(left, right)))));
 ```
 
 ### Floating point
@@ -274,7 +299,7 @@ Configure via `CheckOptions`. Only set what you need:
 await Property.ForAll(Generate.String(), async s => Assert.Equal(s, await RoundTripAsync(s))).AssertAsync();
 ```
 
-Mame sure to await the result.
+Make sure to await the result.
 
 ## Reproducing failures
 
@@ -333,4 +358,4 @@ Each look compares a [Wilson score interval](https://doi.org/10.1080/01621459.19
 
 During generation, every decision a generator makes is recorded as an integer _choice_, with `0` always meaning the simplest option. A generated value is entirely a function of that choice sequence.
 
-When an example fails, the shrinker edits the choice sequence by deleting spans, zeroing them, binary-searching individual choices towards zero, shrinking equal choices together, and moving value between numeric pairs. It then then replays the generator on the edited sequence and keeps any candidate that still fails in the same way. This is the approach [Hypothesis](https://hypothesis.readthedocs.io/) takes, and its papers and documentation are the best place to read more.
+When an example fails, the shrinker edits the choice sequence by deleting spans, zeroing them, binary-searching individual choices towards zero, shrinking equal choices together, and moving value between numeric pairs. It then replays the generator on the edited sequence and keeps any candidate that still fails in the same way. This is the approach [Hypothesis](https://hypothesis.readthedocs.io/) takes, and its papers and documentation are the best place to read more.

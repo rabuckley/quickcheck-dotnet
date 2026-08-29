@@ -18,14 +18,15 @@ public static partial class Generate
     /// </returns>
     /// <remarks>
     /// <para>
-    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/> discards the example;
-    /// any other exception fails the check with that exception.
+    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
+    /// check with that exception.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
     /// together, such as a lower bound and an upper bound, filter the tuple before building
-    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or throw
-    /// <see cref="DiscardException"/> from <paramref name="construct"/>.
+    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or call
+    /// <see cref="Property.Assume(bool)"/> from <paramref name="construct"/>.
     /// </para>
     /// <para>
     /// For one value, use <see cref="Select{T, TResult}(Generator{T}, Func{T, TResult})"/>; for more than
@@ -66,14 +67,15 @@ public static partial class Generate
     /// </returns>
     /// <remarks>
     /// <para>
-    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/> discards the example;
-    /// any other exception fails the check with that exception.
+    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
+    /// check with that exception.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
     /// together, such as a lower bound and an upper bound, filter the tuple before building
-    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or throw
-    /// <see cref="DiscardException"/> from <paramref name="construct"/>.
+    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or call
+    /// <see cref="Property.Assume(bool)"/> from <paramref name="construct"/>.
     /// </para>
     /// <para>
     /// For one value, use <see cref="Select{T, TResult}(Generator{T}, Func{T, TResult})"/>; for more than
@@ -118,14 +120,15 @@ public static partial class Generate
     /// </returns>
     /// <remarks>
     /// <para>
-    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/> discards the example;
-    /// any other exception fails the check with that exception.
+    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
+    /// check with that exception.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
     /// together, such as a lower bound and an upper bound, filter the tuple before building
-    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or throw
-    /// <see cref="DiscardException"/> from <paramref name="construct"/>.
+    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or call
+    /// <see cref="Property.Assume(bool)"/> from <paramref name="construct"/>.
     /// </para>
     /// <para>
     /// For one value, use <see cref="Select{T, TResult}(Generator{T}, Func{T, TResult})"/>; for more than
@@ -178,14 +181,15 @@ public static partial class Generate
     /// </returns>
     /// <remarks>
     /// <para>
-    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/> discards the example;
-    /// any other exception fails the check with that exception.
+    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
+    /// check with that exception.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
     /// together, such as a lower bound and an upper bound, filter the tuple before building
-    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or throw
-    /// <see cref="DiscardException"/> from <paramref name="construct"/>.
+    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or call
+    /// <see cref="Property.Assume(bool)"/> from <paramref name="construct"/>.
     /// </para>
     /// <para>
     /// For one value, use <see cref="Select{T, TResult}(Generator{T}, Func{T, TResult})"/>; for more than
@@ -244,14 +248,15 @@ public static partial class Generate
     /// </returns>
     /// <remarks>
     /// <para>
-    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/> discards the example;
-    /// any other exception fails the check with that exception.
+    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
+    /// check with that exception.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
     /// together, such as a lower bound and an upper bound, filter the tuple before building
-    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or throw
-    /// <see cref="DiscardException"/> from <paramref name="construct"/>.
+    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or call
+    /// <see cref="Property.Assume(bool)"/> from <paramref name="construct"/>.
     /// </para>
     /// <para>
     /// For one value, use <see cref="Select{T, TResult}(Generator{T}, Func{T, TResult})"/>; for more than
@@ -315,14 +320,15 @@ public static partial class Generate
     /// </returns>
     /// <remarks>
     /// <para>
-    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/> discards the example;
-    /// any other exception fails the check with that exception.
+    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
+    /// check with that exception.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
     /// together, such as a lower bound and an upper bound, filter the tuple before building
-    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or throw
-    /// <see cref="DiscardException"/> from <paramref name="construct"/>.
+    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or call
+    /// <see cref="Property.Assume(bool)"/> from <paramref name="construct"/>.
     /// </para>
     /// <para>
     /// For one value, use <see cref="Select{T, TResult}(Generator{T}, Func{T, TResult})"/>; for more than
@@ -391,14 +397,15 @@ public static partial class Generate
     /// </returns>
     /// <remarks>
     /// <para>
-    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/> discards the example;
-    /// any other exception fails the check with that exception.
+    /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
+    /// check with that exception.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
     /// together, such as a lower bound and an upper bound, filter the tuple before building
-    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or throw
-    /// <see cref="DiscardException"/> from <paramref name="construct"/>.
+    /// (<c>Generate.Tuple(low, high).Where(pair => pair.Item1 &lt;= pair.Item2).Select(...)</c>) or call
+    /// <see cref="Property.Assume(bool)"/> from <paramref name="construct"/>.
     /// </para>
     /// <para>
     /// For one value, use <see cref="Select{T, TResult}(Generator{T}, Func{T, TResult})"/>; for more than
