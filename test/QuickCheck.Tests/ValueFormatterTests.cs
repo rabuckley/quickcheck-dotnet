@@ -105,6 +105,21 @@ public sealed class ValueFormatterTests
     }
 
     [Fact]
+    public void Format_WithTuples_ShouldFlattenTheRestFieldAndFormatTheirItems()
+    {
+        // Arrange
+        // A tuple past seven items is a ValueTuple whose eighth slot holds another tuple. ITuple
+        // reports that nesting flat, so the rendering shows eight items rather than a trailing "(8)".
+        var eight = (1, 2, 3, 4, 5, 6, 7, 8);
+        var nested = (1, ("a", 'b'));
+
+        // Act & Assert
+        Assert.Equal("(1, 2, 3, 4, 5, 6, 7, 8)", ValueFormatter.Format(eight));
+        Assert.Equal("(1, (\"a\", 'b'))", ValueFormatter.Format(nested));
+        Assert.Equal("(1, null)", ValueFormatter.Format((1, (string?)null)));
+    }
+
+    [Fact]
     public void Format_WithHandWrittenToString_ShouldUseIt()
     {
         // Arrange

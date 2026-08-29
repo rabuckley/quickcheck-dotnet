@@ -321,4 +321,179 @@ public sealed class GenerateTests
         Assert.Equal(first, second);
         Assert.NotEqual(first, other);
     }
+
+    [Fact]
+    public void Build_WithMemberGenerators_ShouldDrawEachInOrder()
+    {
+        // Arrange
+        var drawn = 0;
+        var counter = Generate.From(_ => ++drawn);
+        var generator = Generate.Build(counter, counter, counter, static (a, b, c) => (a, b, c));
+
+        // Act
+        var value = generator.Sample(count: 1, seed: 20).Single();
+
+        // Assert
+        Assert.Equal((1, 2, 3), value);
+    }
+
+    [Fact]
+    public void Build_WithTheSameSeed_ShouldMatchAHandWrittenFromGenerator()
+    {
+        // Arrange
+        var amounts = Generate.Between(0L, 1_000_000L);
+        var currencies = Generate.Elements("GBP", "USD");
+        var built = Generate.Build(amounts, currencies, static (amount, currency) => (amount, currency));
+        var handWritten = Generate.From(source => (source.Draw(amounts), source.Draw(currencies)));
+        var options = new CheckOptions { Seed = 21 };
+
+        // Act
+        var builtSamples = built.Sample(count: 100, seed: 22);
+        var handWrittenSamples = handWritten.Sample(count: 100, seed: 22);
+        var builtResult = Property.ForAll(built, static money => money.amount < 1000).Check(options);
+        var handWrittenResult = Property.ForAll(handWritten, static money => money.Item1 < 1000).Check(options);
+
+        // Assert
+        Assert.Equal(handWrittenSamples, builtSamples);
+        Assert.Equal(handWrittenResult.Original!.Value, builtResult.Original!.Value);
+        Assert.Equal(handWrittenResult.Minimal!.Value, builtResult.Minimal!.Value);
+        Assert.Equal(handWrittenResult.ShrinkAttempts, builtResult.ShrinkAttempts);
+    }
+
+    [Fact]
+    public void Build_WithEightMembers_ShouldFormatTheResultAsOneTuple()
+    {
+        // Arrange
+        var generator = Generate.Build(
+            Generate.Constant(1),
+            Generate.Constant(2),
+            Generate.Constant(3),
+            Generate.Constant(4),
+            Generate.Constant(5),
+            Generate.Constant(6),
+            Generate.Constant(7),
+            Generate.Constant(8),
+            static (a, b, c, d, e, f, g, h) => (a, b, c, d, e, f, g, h));
+
+        // Act
+        var built = generator.Sample(count: 1, seed: 23).Single();
+
+        // Assert
+        Assert.Equal((1, 2, 3, 4, 5, 6, 7, 8), built);
+    }
+
+    [Fact]
+    public void Build_WithConstructThatAssumesARelation_ShouldDiscardTheExampleRatherThanFail()
+    {
+        // Arrange
+        // The documented way to tie members together from construct: the drawn pair that breaks the
+        // relation is discarded, not reported as a counterexample carrying a DiscardException.
+        var intervals = Generate.Build(Generate.Between(0, 100), Generate.Between(0, 100), static (low, high) =>
+        {
+            Property.Assume(low <= high);
+            return (low, high);
+        });
+        var property = Property.ForAll(intervals, static interval => interval.low <= interval.high);
+
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 29, RunCount = 100 });
+
+        // Assert
+        Assert.Equal(PropertyOutcome.Passed, result.Outcome);
+        Assert.Equal(100, result.TestsRun);
+        Assert.True(result.Discards > 0);
+    }
+
+    [Fact]
+    public void Build_WithANullArgument_ShouldThrowArgumentNullExceptionNamingIt()
+    {
+        // Arrange
+        var integers = Generate.Integer<int>();
+
+        // Act
+        var nullSecond = Assert.Throws<ArgumentNullException>(() =>
+            Generate.Build(integers, null!, static (int a, int b) => a + b));
+        var nullConstruct = Assert.Throws<ArgumentNullException>(() =>
+            Generate.Build(integers, integers, (Func<int, int, int>)null!));
+        var nullEighth = Assert.Throws<ArgumentNullException>(() =>
+            Generate.Build(
+                integers, integers, integers, integers, integers, integers, integers, null!,
+                static (int a, int b, int c, int d, int e, int f, int g, int h) => a));
+
+        // Assert
+        Assert.Equal("generator2", nullSecond.ParamName);
+        Assert.Equal("construct", nullConstruct.ParamName);
+        Assert.Equal("generator8", nullEighth.ParamName);
+    }
+
+    [Fact]
+    public void Sequence_WithGenerators_ShouldDrawEachInOrderIntoAFreshArray()
+    {
+        // Arrange
+        var drawn = 0;
+        var counter = Generate.From(_ => ++drawn);
+        var generator = Generate.Sequence(counter, counter, counter);
+
+        // Act
+        var samples = generator.Sample(count: 2, seed: 24);
+
+        // Assert
+        Assert.Equal([1, 2, 3], samples[0]);
+        Assert.Equal([4, 5, 6], samples[1]);
+        Assert.NotSame(samples[0], samples[1]);
+    }
+
+    [Fact]
+    public void Sequence_WithNoGenerators_ShouldProduceEmptyArrays()
+    {
+        // Arrange
+        var generator = Generate.Sequence<int>();
+
+        // Act
+        var samples = generator.Sample(count: 5, seed: 25);
+        var result = Property.ForAll(generator, static _ => false).Check(new CheckOptions { Seed = 26 });
+
+        // Assert
+        Assert.All(samples, static items => Assert.Empty(items));
+        Assert.True(result.IsFalsified);
+        Assert.Empty(result.Minimal!.Value);
+        Assert.Equal(0, result.ShrinkAttempts);
+        Assert.Equal(ShrinkLimit.None, result.ShrinkLimit);
+    }
+
+    [Fact]
+    public void Sequence_WithASequenceArgument_ShouldEnumerateItOnceWhenCalled()
+    {
+        // Arrange
+        var enumerations = 0;
+
+        IEnumerable<Generator<int>> Generators()
+        {
+            enumerations++;
+            yield return Generate.Constant(1);
+            yield return Generate.Constant(2);
+        }
+
+        // Act
+        var generator = Generate.Sequence(Generators());
+        var afterTheCall = enumerations;
+        var samples = generator.Sample(count: 10, seed: 27);
+
+        // Assert
+        Assert.Equal(1, afterTheCall);
+        Assert.Equal(1, enumerations);
+        Assert.All(samples, static items => Assert.Equal([1, 2], items));
+    }
+
+    [Fact]
+    public void Sequence_WithANullArgument_ShouldThrowArgumentNullExceptionNamingGenerators()
+    {
+        // Act
+        var nullSequence = Assert.Throws<ArgumentNullException>(() => Generate.Sequence<int>(null!));
+        var nullElement = Assert.Throws<ArgumentNullException>(() => Generate.Sequence(Generate.Constant(1), null!));
+
+        // Assert
+        Assert.Equal("generators", nullSequence.ParamName);
+        Assert.Equal("generators", nullElement.ParamName);
+    }
 }

@@ -262,6 +262,60 @@ public sealed class ShrinkingTests
     }
 
     [Fact]
+    public void Shrinking_WithBuildOverIndependentMembers_ShouldShrinkEachToItsMinimum()
+    {
+        // Arrange
+        var generator = Generate.Build(
+            Generate.Integer<int>(),
+            Generate.String(),
+            Generate.Boolean(),
+            static (number, text, flag) => (number, text, flag));
+        var property = Property.ForAll(generator, static value => value.number <= 100);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal((101, "", false), result.Minimal.Value);
+    }
+
+    [Fact]
+    public void Shrinking_WithBuildOverRelatedMembers_ShouldMatchTheTupleLayout()
+    {
+        // Arrange
+        // The same members as the ForAll triple above, so the same minimum is expected.
+        var generator = Generate.Build(
+            Generate.Between(0, 1000),
+            Generate.String(),
+            Generate.Between(0, 1000),
+            static (a, text, c) => (a, text, c));
+        var property = Property.ForAll(generator, static value => value.a + value.c < 100);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal((0, "", 100), result.Minimal.Value);
+    }
+
+    [Fact]
+    public void Shrinking_WithASequence_ShouldShrinkEachElementIndependently()
+    {
+        // Arrange
+        var generator = Generate.Sequence(Enumerable.Repeat(Generate.Between(0, 1000), 8));
+        var property = Property.ForAll(generator, static items => items.Sum() < 100);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([0, 0, 0, 0, 0, 0, 0, 100], result.Minimal.Value);
+    }
+
+    [Fact]
     public void Shrinking_WithZeroMaxShrinkAttempts_ShouldBeDisabled()
     {
         // Arrange
