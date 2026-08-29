@@ -6,7 +6,7 @@ namespace QuickCheck;
 /// </summary>
 public enum ShrinkLimit
 {
-    /// <summary>No limit was reached: shrinking ran until no candidate improved.</summary>
+    /// <summary>No limit was reached.</summary>
     None,
 
     /// <summary><see cref="CheckOptions.MaxShrinkAttempts"/> was spent.</summary>

@@ -64,9 +64,9 @@ public sealed class PropertyResult<T>
 
     /// <summary>
     /// Gets the budget limit that ended shrinking before it converged, or
-    /// <see cref="QuickCheck.ShrinkLimit.None"/> when shrinking ran until no candidate improved (or
-    /// the property was not falsified). When a limit was reached, <see cref="Minimal"/> may not be
-    /// the smallest example the shrinker could have found.
+    /// <see cref="QuickCheck.ShrinkLimit.None"/> when no limit was reached, including when the
+    /// property was not falsified. When a limit was reached, <see cref="Minimal"/> may not be the
+    /// smallest example the shrinker could have found.
     /// </summary>
     public ShrinkLimit ShrinkLimit { get; init; }
 

@@ -215,6 +215,53 @@ public sealed class ShrinkingTests
     }
 
     [Fact]
+    public void Shrinking_WithAGeneratorThatThrowsOnACandidate_ShouldKeepTheCounterexample()
+    {
+        // Arrange
+        // Generation rarely violates the guard, but deleting the low member's span replays the
+        // high member's choice into its slot and pads the high member with 0, so shrinking
+        // routinely does.
+        var refusals = 0;
+        var intervals = Generate.From(source =>
+        {
+            var low = source.Draw(Generate.Between(0, 1));
+            var high = source.Draw(Generate.Between(0, 1000));
+
+            if (high < low)
+            {
+                refusals++;
+            }
+
+            return new Interval(low, high);
+        });
+        var property = Property.ForAll(intervals, static interval => interval.High < 500);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(refusals > 0);
+        Assert.True(result.IsFalsified);
+        Assert.Equal(new Interval(0, 500), result.Minimal.Value);
+        Assert.NotNull(result.Replay);
+        Assert.Equal(ShrinkLimit.None, result.ShrinkLimit);
+    }
+
+    private sealed record Interval
+    {
+        public Interval(int low, int high)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(high, low);
+            Low = low;
+            High = high;
+        }
+
+        public int Low { get; }
+
+        public int High { get; }
+    }
+
+    [Fact]
     public void Shrinking_WithZeroMaxShrinkAttempts_ShouldBeDisabled()
     {
         // Arrange
