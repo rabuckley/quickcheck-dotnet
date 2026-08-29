@@ -361,7 +361,25 @@ public sealed class GenerateTests
     }
 
     [Fact]
-    public void Build_WithEightMembers_ShouldFormatTheResultAsOneTuple()
+    public void Build_WithAReplayToken_ShouldReproduceTheCounterexample()
+    {
+        // Arrange
+        var people = Generate.Build(Generate.String(), Generate.Between(0, 150), static (name, age) => (name, age));
+        var property = Property.ForAll(people, static person => person.age <= 100);
+        var failed = property.Check(new CheckOptions { Seed = 28 });
+        Assert.True(failed.IsFalsified);
+
+        // Act
+        var replayed = property.Check(new CheckOptions { Replay = Replay.Parse(failed.Replay!.Value.ToString()) });
+
+        // Assert
+        Assert.Equal(failed.Original!.Value, replayed.Original!.Value);
+        Assert.Equal(failed.Minimal!.Value, replayed.Minimal!.Value);
+        Assert.Equal(("", 101), replayed.Minimal.Value);
+    }
+
+    [Fact]
+    public void Build_WithEightMembers_ShouldDrawEachInOrder()
     {
         // Arrange
         var generator = Generate.Build(
