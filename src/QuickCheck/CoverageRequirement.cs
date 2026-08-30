@@ -17,6 +17,7 @@ namespace QuickCheck;
 /// <c>Only x% label, but required y%</c> on a <see cref="PropertyOutcome.Passed"/> result. Under
 /// <see cref="CheckOptions.CoverageConfidence"/>, a requirement is met unless the check has found
 /// the rate short of the minimum to the stated confidence, so every requirement of a
-/// <see cref="PropertyOutcome.Passed"/> result is met.
+/// <see cref="PropertyOutcome.Passed"/> result is met. A replayed example checks nothing, so every
+/// requirement of a <see cref="CheckOptions.Replay"/> result is met.
 /// </param>
 public sealed record CoverageRequirement(string Label, double MinimumPercent, int Count, bool IsMet);

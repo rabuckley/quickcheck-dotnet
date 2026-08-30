@@ -51,6 +51,12 @@ internal sealed class RunStatistics
         _coverMinimums.Select(requirement => (requirement.Value, _labels[requirement.Key]));
 
     /// <summary>
+    /// Takes a snapshot in which every requirement is met, for a replayed example, which is never
+    /// held to a coverage requirement.
+    /// </summary>
+    public PropertyStatistics ToPropertyStatistics() => ToPropertyStatistics(static (_, _) => true);
+
+    /// <summary>
     /// Takes an immutable snapshot in which a <see cref="Property.Cover"/> requirement is met when
     /// its count reaches the minimum share of <paramref name="testsRun"/>, the number of examples
     /// that passed.

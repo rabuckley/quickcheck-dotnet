@@ -253,7 +253,8 @@ public sealed class StatisticsTests
         Assert.Equal(PropertyOutcome.Passed, result.Outcome);
         Assert.Equal(1, result.TestsRun);
         Assert.Equal(1, result.Statistics.Labels["seen"]);
-        Assert.False(Assert.Single(result.Statistics.Coverage).IsMet);
+        Assert.True(Assert.Single(result.Statistics.Coverage).IsMet);
+        Assert.DoesNotContain("Only", result.ToString(), StringComparison.Ordinal);
         Assert.Contains("100% seen", result.ToString());
     }
 

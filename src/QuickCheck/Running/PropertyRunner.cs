@@ -226,7 +226,7 @@ internal sealed class PropertyRunner<T>
         {
             var statistics = new RunStatistics();
             statistics.Merge(example);
-            return statistics.ToPropertyStatistics(testsRun: 1);
+            return statistics.ToPropertyStatistics();
         }
     }
 
