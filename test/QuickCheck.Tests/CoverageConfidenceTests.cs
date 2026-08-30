@@ -20,7 +20,7 @@ public sealed class CoverageConfidenceTests
 
         Assert.StartsWith(
             "Insufficient coverage after 100 tests (seed 1).\n"
-            + "  Only 0% never, but required 50%\n"
+            + "  Only 0% never, but required 50% (the true rate is 0% to 2%)\n"
             + "  0% never (required 50%)",
             exception.Message.ReplaceLineEndings("\n"),
             StringComparison.Ordinal);

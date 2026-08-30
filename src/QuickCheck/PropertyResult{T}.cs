@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
+using QuickCheck.Running;
 
 namespace QuickCheck;
 
@@ -259,6 +260,15 @@ public sealed class PropertyResult<T>
                     .Append(", but required ")
                     .Append(FormatMinimum(requirement.MinimumPercent))
                     .Append('%');
+
+                // The 95% equal-tailed Jeffreys credible interval; see JeffreysInterval.
+                var (lower, upper) = JeffreysInterval.Bounds(requirement.Count, TestsRun);
+
+                builder.Append(" (the true rate is ")
+                    .Append(FormatRate(lower * 100))
+                    .Append("% to ")
+                    .Append(FormatRate(upper * 100))
+                    .Append("%)");
             }
         }
 
@@ -316,12 +326,13 @@ public sealed class PropertyResult<T>
             counts.OrderByDescending(static entry => entry.Value).ThenBy(static entry => entry.Key, StringComparer.Ordinal);
     }
 
+    private string FormatPercent(int count) => FormatRate(TestsRun == 0 ? 0 : count * 100.0 / TestsRun);
+
     // QuickCheck's rule: enough decimals to tell one example from the next, so none up to 100 tests,
     // one up to 1000, two up to 10000, and so on.
-    private string FormatPercent(int count)
+    private string FormatRate(double percent)
     {
         var places = TestsRun == 0 ? 0 : Math.Max(0, (int)Math.Ceiling(Math.Log10(TestsRun) - 2));
-        var percent = TestsRun == 0 ? 0 : count * 100.0 / TestsRun;
 
         return percent.ToString("F" + places.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
     }

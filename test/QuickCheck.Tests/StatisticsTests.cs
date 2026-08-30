@@ -177,10 +177,31 @@ public sealed class StatisticsTests
 
         Assert.Equal(
             "Passed 100 tests (seed 1).\n"
-            + "  Only 10% tenth, but required 50%\n"
+            + "  Only 10% tenth, but required 50% (the true rate is 5% to 17%)\n"
             + "  100% all\n"
             + "  10% tenth (required 50%)",
             result.ToString().ReplaceLineEndings("\n"));
+    }
+
+    [Theory]
+    [InlineData(18, 20, "(the true rate is 11% to 26%)")]
+    [InlineData(3, 20, "(the true rate is 1% to 8%)")]
+    [InlineData(0, 50, "(the true rate is 0% to 2%)")]
+    public void Cover_WithRequirementUnmet_ShouldStateWhereTheTrueRatePlausiblyLies(
+        int hitsPerHundred, double minimum, string expectedParenthetical)
+    {
+        // Arrange
+        var n = 0;
+
+        var property = Property.ForAll(
+            Generate.Integer<int>(), _ => Property.Cover(n++ % 100 < hitsPerHundred, minimum, "label"));
+
+        // Act
+        var result = property.Check(Hundred);
+
+        // Assert
+        Assert.Equal(PropertyOutcome.Passed, result.Outcome);
+        Assert.Contains(expectedParenthetical, result.ToString());
     }
 
     [Fact]
@@ -232,7 +253,9 @@ public sealed class StatisticsTests
         Assert.DoesNotContain("Only", everyExampleResult.ToString());
         Assert.Equal(PropertyOutcome.Passed, allButOneResult.Outcome);
         Assert.False(Assert.Single(allButOneResult.Statistics.Coverage).IsMet);
-        Assert.Contains("\n  Only 99% all, but required 100%", allButOneResult.ToString().ReplaceLineEndings("\n"));
+        Assert.Contains(
+            "\n  Only 99% all, but required 100% (the true rate is 95% to 100%)",
+            allButOneResult.ToString().ReplaceLineEndings("\n"));
     }
 
     [Fact]

@@ -141,7 +141,7 @@ public static class Property
     /// <para>
     /// By default the requirement is compared with the rate seen over the
     /// <see cref="CheckOptions.RunCount"/> examples of one seed, and a shortfall prints as
-    /// <c>Only x% label, but required y%</c> under the headline of a
+    /// <c>Only x% label, but required y% (the true rate is l% to u%)</c> under the headline of a
     /// <see cref="PropertyOutcome.Passed"/> result, so that a chance dip on an unlucky seed never
     /// fails a test. Set <see cref="CheckOptions.CoverageConfidence"/> to make the requirement an
     /// assertion about the rate the generator really produces: the check then runs past

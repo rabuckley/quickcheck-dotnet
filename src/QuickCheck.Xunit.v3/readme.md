@@ -115,4 +115,4 @@ Falsified after 12 tests and 34 shrinks (seed 3468194371).
   Replay with: [Property(Replay = "3468194371:11")]
 ```
 
-A passing property writes `Passed 100 tests (seed …)` and any label distribution to the test output. An unmet `Property.Cover` requirement prints there as `Only 3% label, but required 20%` and the test still passes; with `CheckCoverage = true` the property runs past `RunCount` until the requirement is known to be met or missed, and a known miss fails the test with `Insufficient coverage after … tests`. Deciding a small minimum can take a million or more examples, so give such a test a `Timeout`.
+A passing property writes `Passed 100 tests (seed …)` and any label distribution to the test output. An unmet `Property.Cover` requirement prints there as `Only 3% label, but required 20% (the true rate is 1% to 8%)` and the test still passes; with `CheckCoverage = true` the property runs past `RunCount` until the requirement is known to be met or missed, and a known miss fails the test with `Insufficient coverage after … tests`. Deciding a small minimum can take a million or more examples, so give such a test a `Timeout`.

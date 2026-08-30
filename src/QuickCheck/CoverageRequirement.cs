@@ -14,7 +14,8 @@ namespace QuickCheck;
 /// Whether the check considers the requirement met. By default, whether <paramref name="Count"/>
 /// reaches <paramref name="MinimumPercent"/> of the passed examples; a minimum of 100 requires
 /// every example to hit the label, and an unmet requirement prints as
-/// <c>Only x% label, but required y%</c> on a <see cref="PropertyOutcome.Passed"/> result. Under
+/// <c>Only x% label, but required y% (the true rate is l% to u%)</c> on a
+/// <see cref="PropertyOutcome.Passed"/> result. Under
 /// <see cref="CheckOptions.CoverageConfidence"/>, a requirement is met unless the check has found
 /// the rate short of the minimum to the stated confidence, so every requirement of a
 /// <see cref="PropertyOutcome.Passed"/> result is met. A replayed example checks nothing, so every
