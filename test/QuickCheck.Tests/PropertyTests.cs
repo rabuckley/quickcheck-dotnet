@@ -130,6 +130,27 @@ public sealed class PropertyTests
     }
 
     [Fact]
+    public void Check_WithExhaustion_ShouldReportTheEstimatedDiscardRate()
+    {
+        // Arrange
+        var property = Property.ForAll(Generate.Integer<int>(), static _ =>
+        {
+            Property.Assume(false);
+            return true;
+        });
+
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 1 });
+
+        // Assert
+        Assert.Equal(
+            "Gave up after 0 tests with 1001 discards (seed 1). "
+            + "About 99.95% of examples were discarded (the true rate is 99.75% to 100.00%); "
+            + "prefer generators that only produce valid inputs over Assume/Where.",
+            result.ToString().ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
     public void Where_WithPredicateThatNeverMatches_ShouldExhaustRatherThanHang()
     {
         // Arrange

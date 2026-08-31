@@ -158,10 +158,9 @@ public sealed class PropertyResult<T>
                 report.Append($"Gave up after {TestsRun} tests");
                 AppendExplicitExamples(report);
                 AppendDiscards(report);
-
-                report.Append($" (seed {Seed}). Too many examples were discarded; ")
-                    .Append("prefer generators that only produce valid inputs over Assume/Where.");
-
+                report.Append($" (seed {Seed}). ");
+                AppendDiscardRate(report);
+                report.Append("prefer generators that only produce valid inputs over Assume/Where.");
                 AppendDiscardedExamples(report);
 
                 break;
@@ -247,6 +246,30 @@ public sealed class PropertyResult<T>
 
         static string Was(int count) => count == 1 ? " was" : " were";
 
+        void AppendDiscardRate(StringBuilder builder)
+        {
+            // A replay checks one example, and its discard says nothing about a rate.
+            if (Discards <= 1)
+            {
+                builder.Append("Too many examples were discarded; ");
+                return;
+            }
+
+            var attempts = TestsRun + Discards;
+
+            // The mean of the same Jeffreys posterior the interval is cut from.
+            var mean = (Discards + 0.5) / (attempts + 1);
+            var (lower, upper) = JeffreysInterval.Bounds(Discards, attempts);
+
+            builder.Append("About ")
+                .Append(FormatRate(mean * 100, attempts))
+                .Append("% of examples were discarded (the true rate is ")
+                .Append(FormatRate(lower * 100, attempts))
+                .Append("% to ")
+                .Append(FormatRate(upper * 100, attempts))
+                .Append("%); ");
+        }
+
         void AppendShortfalls(StringBuilder builder)
         {
             foreach (var requirement in Statistics.Coverage.Where(static requirement => !requirement.IsMet))
@@ -328,11 +351,13 @@ public sealed class PropertyResult<T>
 
     private string FormatPercent(int count) => FormatRate(TestsRun == 0 ? 0 : count * 100.0 / TestsRun);
 
-    // QuickCheck's rule: enough decimals to tell one example from the next, so none up to 100 tests,
-    // one up to 1000, two up to 10000, and so on.
-    private string FormatRate(double percent)
+    private string FormatRate(double percent) => FormatRate(percent, TestsRun);
+
+    // QuickCheck's rule: enough decimals to tell one example from the next, so none up to 100 of
+    // whatever the rate is out of, one up to 1000, two up to 10000, and so on.
+    private static string FormatRate(double percent, int total)
     {
-        var places = TestsRun == 0 ? 0 : Math.Max(0, (int)Math.Ceiling(Math.Log10(TestsRun) - 2));
+        var places = total == 0 ? 0 : Math.Max(0, (int)Math.Ceiling(Math.Log10(total) - 2));
 
         return percent.ToString("F" + places.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
     }

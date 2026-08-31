@@ -246,7 +246,7 @@ Two ways to run a property:
 
 ### Preconditions
 
-`Property.Assume(condition)` discards the current example when a precondition does not hold. Prefer a generator that only produces valid inputs. Note that a property that discards too much is reported as `Exhausted` rather than passing on only a few examples.
+`Property.Assume(condition)` discards the current example when a precondition does not hold. Prefer a generator that only produces valid inputs. Note that a property that discards too much is reported as `Exhausted` rather than passing on only a few examples, with the estimated discard rate in the report.
 
 ### Explicit examples
 
