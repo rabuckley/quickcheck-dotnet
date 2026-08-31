@@ -138,9 +138,10 @@ jobs:
         with:
           config: cliff.toml
           # `--current` takes the commits belonging to the tag at HEAD.
-          args: --current --offline
+          args: --current
         env:
           OUTPUT: ${{ runner.temp }}/release-notes.md
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Draft the release
         env:

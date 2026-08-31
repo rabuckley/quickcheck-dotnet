@@ -1,32 +1,38 @@
 [changelog]
 body = """
+{% macro link(commit) %}\
+{% set repo = "https://github.com/" ~ remote.github.owner ~ "/" ~ remote.github.repo %}\
+{% if commit.remote.pr_number %}\
+[#{{ commit.remote.pr_number }}]({{ repo }}/pull/{{ commit.remote.pr_number }})\
+{% else %}\
+[`{{ commit.id | truncate(length=7, end="") }}`]({{ repo }}/commit/{{ commit.id }})\
+{% endif %}\
+{% endmacro %}\
 {% set breaking = commits | filter(attribute="breaking", value=true) %}\
 {% if breaking | length > 0 %}## Breaking changes
 
 {% for commit in breaking %}\
-- {% if commit.scope %}({{ commit.scope }}) {% endif %}{{ commit.message | upper_first }}
+- {% if commit.scope %}({{ commit.scope }}) {% endif %}{{ commit.message | upper_first }} ({{ self::link(commit=commit) }})
 {% endfor %}
 {% endif %}\
 {% for group, commits in commits | filter(attribute="breaking", value=false) | group_by(attribute="group") %}\
 ## {{ group | striptags | trim }}
 
 {% for commit in commits %}\
-- {% if commit.scope %}({{ commit.scope }}) {% endif %}{{ commit.message | upper_first }}
+- {% if commit.scope %}({{ commit.scope }}) {% endif %}{{ commit.message | upper_first }} ({{ self::link(commit=commit) }})
 {% endfor %}
 {% endfor %}"""
 
 footer = """
 {% for release in releases %}{% if release.previous.version %}\
-**Full changelog**: <REPO>/compare/{{ release.previous.version }}...{{ release.version }}
+**Full changelog**: https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}/compare/{{ release.previous.version }}...{{ release.version }}
 {% endif %}{% endfor %}"""
 
 trim = false
 
-# Hardcoding the repository keeps the config working with no GITHUB_REPO env var
-# and no remote API call, so the notes render identically locally and in CI.
-postprocessors = [
-  { pattern = '<REPO>', replace = "https://github.com/rabuckley/quickcheck-dotnet" },
-]
+[remote.github]
+owner = "rabuckley"
+repo = "quickcheck-dotnet"
 
 [git]
 conventional_commits = true
