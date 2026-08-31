@@ -102,6 +102,76 @@ public sealed class ShrinkingTests
     }
 
     [Fact]
+    public void Shrinking_WithNestedLists_ShouldMergeSiblingsToOneList()
+    {
+        // Arrange
+        // Seed 136 strands span deletion at [[0], [0, 0]]: removing the first
+        // list's terminator shifts every later choice one slot, which breaks
+        // the failure, so only the terminator/guard merge reaches one list.
+        var property = Property.ForAll(
+            Generate.Integer<int>().List().List(),
+            static outer => outer.Sum(static inner => inner.Count) < 3);
+
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 136, RunCount = 200 });
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        var inner = Assert.Single(result.Minimal.Value);
+        Assert.Equal([0, 0, 0], inner);
+    }
+
+    [Fact]
+    public void Shrinking_WithNestedLists_ShouldMergeAndConcentrateTheSum()
+    {
+        // Arrange
+        var property = Property.ForAll(
+            Generate.Between(0, 1000).List().List(),
+            static outer => outer.Sum(static inner => inner.Sum()) < 100);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        var inner = Assert.Single(result.Minimal.Value);
+        Assert.Equal([100], inner);
+    }
+
+    [Fact]
+    public void Shrinking_WithAFailureNeedingTwoLists_ShouldNotMergeThem()
+    {
+        // Arrange
+        var property = Property.ForAll(
+            Generate.Between(0, 1000).List().List(),
+            static outer => outer.Count(static inner => inner.Count > 0) < 2);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([[0], [0]], result.Minimal.Value);
+    }
+
+    [Fact]
+    public void Shrinking_WithAListOfSets_ShouldMergeToOneSet()
+    {
+        // Arrange
+        var property = Property.ForAll(
+            Generate.Between(0, 1000).HashSet().List(),
+            static outer => outer.Sum(static set => set.Count) < 3);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        var set = Assert.Single(result.Minimal.Value);
+        Assert.Equal([0, 1, 2], set.Order());
+    }
+
+    [Fact]
     public void Shrinking_WithADuplicate_ShouldFindTheSmallestPair()
     {
         // Arrange

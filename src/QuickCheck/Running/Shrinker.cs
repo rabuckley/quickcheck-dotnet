@@ -44,6 +44,7 @@ internal sealed class Shrinker<T>
         do
         {
             improved = await DeleteSpansAsync().ConfigureAwait(false);
+            improved |= await MergeSiblingCollectionsAsync().ConfigureAwait(false);
             improved |= await ZeroSpansAsync().ConfigureAwait(false);
             improved |= await MinimiseDuplicatesAsync().ConfigureAwait(false);
             improved |= await MinimiseChoicesAsync().ConfigureAwait(false);
@@ -91,6 +92,49 @@ internal sealed class Shrinker<T>
                 // The span list was rebuilt from the accepted replay; carry on
                 // from the same position, clamped to the new count.
                 i = Math.Min(i, _best.Spans.Count);
+            }
+        }
+
+        return improved;
+    }
+
+    /// <summary>
+    /// Tries merging adjacent sibling collections: a collection drawn with
+    /// optional elements ends with a terminator choice and its next sibling
+    /// opens with a continue flag; deleting the pair splices the sibling's
+    /// elements onto the first collection with every element choice preserved,
+    /// for failures that depend on a total across siblings.
+    /// </summary>
+    private async ValueTask<bool> MergeSiblingCollectionsAsync()
+    {
+        var improved = false;
+
+        for (var i = _best.Choices.Count - 1; i >= 1; i--)
+        {
+            if (_budget.Exhausted)
+            {
+                break;
+            }
+
+            if (_best.Choices[i - 1] != new Choice(0, 1) || _best.Choices[i] != new Choice(1, 1))
+            {
+                continue;
+            }
+
+            var candidate = new List<Choice>(_best.Choices.Count - 2);
+
+            for (var j = 0; j < _best.Choices.Count; j++)
+            {
+                if (j != i - 1 && j != i)
+                {
+                    candidate.Add(_best.Choices[j]);
+                }
+            }
+
+            if (await TryAcceptAsync(candidate).ConfigureAwait(false))
+            {
+                improved = true;
+                i = Math.Min(i, _best.Choices.Count);
             }
         }
 
