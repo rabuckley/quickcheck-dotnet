@@ -9,6 +9,7 @@
 set -euo pipefail
 
 readonly PACKAGE_IDS=(QuickCheck QuickCheck.Xunit.v3)
+readonly RELEASE_URL="https://github.com/rabuckley/quickcheck-dotnet/releases/tag"
 
 if [ "$#" -ne 2 ]; then
   echo "usage: ${0##*/} <tag> <package-directory>" >&2
@@ -50,6 +51,16 @@ for id in "${PACKAGE_IDS[@]}"; do
     ! grep -q 'commit="[0-9a-f]\{40\}"' <<<"$repository"; then
     echo "$id.$version.nupkg is not source-linked, its repository metadata is" \
       "\"$repository\"" >&2
+    exit 1
+  fi
+
+  # `PackageReleaseNotes` is set by the publish workflow, so a package built any
+  # other way reaches this check with the element missing entirely.
+  notes="$(grep -o '<releaseNotes>[^<]*</releaseNotes>' <<<"$nuspec" || true)"
+
+  if [ "$notes" != "<releaseNotes>$RELEASE_URL/$tag</releaseNotes>" ]; then
+    echo "$id.$version.nupkg does not link to its release, its release notes are" \
+      "\"$notes\"" >&2
     exit 1
   fi
 done

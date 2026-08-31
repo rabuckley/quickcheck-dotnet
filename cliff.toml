@@ -1,0 +1,51 @@
+[changelog]
+body = """
+{% set breaking = commits | filter(attribute="breaking", value=true) %}\
+{% if breaking | length > 0 %}## Breaking changes
+
+{% for commit in breaking %}\
+- {% if commit.scope %}({{ commit.scope }}) {% endif %}{{ commit.message | upper_first }}
+{% endfor %}
+{% endif %}\
+{% for group, commits in commits | filter(attribute="breaking", value=false) | group_by(attribute="group") %}\
+## {{ group | striptags | trim }}
+
+{% for commit in commits %}\
+- {% if commit.scope %}({{ commit.scope }}) {% endif %}{{ commit.message | upper_first }}
+{% endfor %}
+{% endfor %}"""
+
+footer = """
+{% for release in releases %}{% if release.previous.version %}\
+**Full changelog**: <REPO>/compare/{{ release.previous.version }}...{{ release.version }}
+{% endif %}{% endfor %}"""
+
+trim = false
+
+# Hardcoding the repository keeps the config working with no GITHUB_REPO env var
+# and no remote API call, so the notes render identically locally and in CI.
+postprocessors = [
+  { pattern = '<REPO>', replace = "https://github.com/rabuckley/quickcheck-dotnet" },
+]
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+protect_breaking_commits = true
+filter_commits = false
+tag_pattern = "^v[0-9]"
+sort_commits = "oldest"
+
+# The `<!-- n -->` prefixes order the groups; `striptags` drops them at render.
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->Features" },
+  { message = "^fix", group = "<!-- 1 -->Bug fixes" },
+  { message = "^perf", group = "<!-- 2 -->Performance" },
+  { message = "^refactor", group = "<!-- 3 -->Refactoring" },
+  { message = "^docs", group = "<!-- 4 -->Documentation" },
+  { message = "^test", group = "<!-- 5 -->Tests" },
+  { message = "^(build|chore)\\(deps", skip = true },
+  { message = "^(build|ci|chore|style)", group = "<!-- 6 -->Build and tooling" },
+  { message = "^revert", group = "<!-- 7 -->Reverts" },
+  { message = ".*", group = "<!-- 8 -->Other" },
+]
