@@ -99,6 +99,7 @@ public sealed class AccountTests
 | `RunCount`          | 100       | Examples to try before passing.                                                                    |
 | `Seed`              | random    | Fixes the example sequence.                                                                        |
 | `Replay`            | none      | A token from a failure report, for example `"3468194371:11"`; runs only that example. Not allowed with `[Example]`; see [Explicit examples](#explicit-examples). |
+| `MaxDiscardRatio`   | 10        | Discards allowed per passed example before the test fails as exhausted.                            |
 | `MaxShrinkAttempts` | 10,000    | Candidates the shrinker may try; 0 disables shrinking.                                             |
 | `MaxShrinkWork`     | 5,000,000 | Total choices shrinking may replay.                                                                |
 | `CheckCoverage`     | false     | Fails the test when a `Property.Cover` requirement is known to be missed; see [Reports](#reports). |

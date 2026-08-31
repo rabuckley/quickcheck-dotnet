@@ -122,6 +122,22 @@ public sealed class PropertyDiscovererTests
     }
 
     [Fact]
+    public async Task Discover_WithMaxDiscardRatio_ShouldSetTheOption()
+    {
+        // Act
+        var set = Assert.IsType<PropertyTestCase>(await TestHost.Discover(
+            typeof(Samples), nameof(Samples.Fine), new PropertyAttribute { MaxDiscardRatio = 3 }));
+        var unset = Assert.IsType<PropertyTestCase>(await TestHost.Discover(typeof(Samples), nameof(Samples.Fine)));
+        var negative = Assert.IsType<PropertyTestCase>(await TestHost.Discover(
+            typeof(Samples), nameof(Samples.Fine), new PropertyAttribute { MaxDiscardRatio = -1 }));
+
+        // Assert
+        Assert.Equal(3, set.Options.MaxDiscardRatio);
+        Assert.Equal(CheckOptions.Default.MaxDiscardRatio, unset.Options.MaxDiscardRatio);
+        Assert.Contains("MaxDiscardRatio", negative.Error);
+    }
+
+    [Fact]
     public async Task Discover_WithOutOfRangeSettings_ShouldReportThemAtDiscovery()
     {
         // Arrange

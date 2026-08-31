@@ -63,6 +63,13 @@ public class PropertyAttribute(
     public string? Replay { get; set; }
 
     /// <summary>
+    /// The number of discards tolerated per passed example; see
+    /// <see cref="CheckOptions.MaxDiscardRatio"/>. Zero (the default) uses the
+    /// library default.
+    /// </summary>
+    public int MaxDiscardRatio { get; set; }
+
+    /// <summary>
     /// The shrinking budget; see <see cref="CheckOptions.MaxShrinkAttempts"/>.
     /// Negative (the default) uses the library default; zero disables shrinking.
     /// </summary>
@@ -120,6 +127,16 @@ public class PropertyAttribute(
         if (Replay is not null)
         {
             options = options with { Replay = QuickCheck.Replay.Parse(Replay) };
+        }
+
+        if (MaxDiscardRatio < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxDiscardRatio), MaxDiscardRatio, "MaxDiscardRatio must be positive, or zero for the default.");
+        }
+
+        if (MaxDiscardRatio != 0)
+        {
+            options = options with { MaxDiscardRatio = MaxDiscardRatio };
         }
 
         if (MaxShrinkAttempts >= 0)
