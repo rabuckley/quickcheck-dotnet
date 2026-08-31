@@ -144,10 +144,49 @@ public sealed class PropertyTests
 
         // Assert
         Assert.Equal(
-            "Gave up after 0 tests with 1001 discards (seed 1). "
-            + "About 99.95% of examples were discarded (the true rate is 99.75% to 100.00%); "
+            "Gave up after 0 tests with 80 discards (seed 1). "
+            + "About 99% of examples were discarded (the true rate is 97% to 100%); "
             + "prefer generators that only produce valid inputs over Assume/Where.",
             result.ToString().ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public void Assume_WithImpossibleCondition_ShouldGiveUpBeforeTheDiscardBudget()
+    {
+        // Arrange
+        var property = Property.ForAll(Generate.Integer<int>(), static _ =>
+        {
+            Property.Assume(false);
+            return true;
+        });
+
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 1 });
+
+        // Assert: the health check fires at 80 discards, long before the budget's 1,001.
+        Assert.Equal(PropertyOutcome.Exhausted, result.Outcome);
+        Assert.Equal(0, result.TestsRun);
+        Assert.Equal(80, result.Discards);
+    }
+
+    [Fact]
+    public void Assume_WithARateTheBudgetTolerates_ShouldNotGiveUpEarly()
+    {
+        // Arrange
+        var n = 0;
+
+        var property = Property.ForAll(Generate.Integer<int>(), _ =>
+        {
+            Property.Assume(n++ % 2 == 0);
+            return true;
+        });
+
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 1 });
+
+        // Assert
+        Assert.Equal(PropertyOutcome.Passed, result.Outcome);
+        Assert.Equal(100, result.TestsRun);
     }
 
     [Fact]

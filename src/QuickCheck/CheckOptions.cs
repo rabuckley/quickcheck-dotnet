@@ -48,7 +48,9 @@ public sealed record CheckOptions
 
     /// <summary>
     /// Gets the number of discarded examples tolerated for each example that must pass, before the
-    /// check gives up with <see cref="PropertyOutcome.Exhausted"/>. The default is 10.
+    /// check gives up with <see cref="PropertyOutcome.Exhausted"/>. The check may give up before
+    /// the budget is spent, when the discard rate observed so far is statistically certain to
+    /// spend it. The default is 10.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
     /// The value is less than or equal to zero.

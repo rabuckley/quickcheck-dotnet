@@ -11,7 +11,10 @@ public enum PropertyOutcome
     /// <summary>An example falsified the property.</summary>
     Falsified,
 
-    /// <summary>Too many examples were discarded to reach the required run count.</summary>
+    /// <summary>
+    /// Too many examples were discarded to reach the required run count, or the discard rate made
+    /// reaching it hopeless.
+    /// </summary>
     Exhausted,
 
     /// <summary>

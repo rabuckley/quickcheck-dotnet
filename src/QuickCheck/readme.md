@@ -282,7 +282,7 @@ Configure via `CheckOptions`. Only set what you need:
 | `RunCount`           | 100       | Examples to try before passing; the fewest examples that must pass when `CoverageConfidence` is set.                      |
 | `Seed`               | random    | Fixes the example sequence; the report prints the seed used.                                                              |
 | `Replay`             | none      | Runs only one specific example from an earlier report; see [Reproducing failures](#reproducing-failures).                 |
-| `MaxDiscardRatio`    | 10        | Discards allowed per passed example before the check is `Exhausted`.                                                      |
+| `MaxDiscardRatio`    | 10        | Discards allowed per passed example before the check is `Exhausted`; it gives up sooner once that outcome is certain.     |
 | `MaxShrinkAttempts`  | 10,000    | Candidates the shrinker may try; 0 disables shrinking.                                                                    |
 | `MaxShrinkWork`      | 5,000,000 | Total choices shrinking may replay, which bounds the work one very large counterexample can cost.                         |
 | `CoverageConfidence` | none      | Checks `Cover` requirements to a stated certainty and fails on a known miss; see [Checking coverage](#checking-coverage). |

@@ -162,8 +162,11 @@ internal sealed class PropertyRunner<T>
                     discards++;
 
                     // The budget grows with the run so that a long coverage check is not exhausted
-                    // by a discard rate the RunCount examples would have tolerated.
-                    if (discards > (long)options.MaxDiscardRatio * Math.Max(passed, options.RunCount))
+                    // by a discard rate the RunCount examples would have tolerated. The health
+                    // check gives up as soon as the acceptance rate is known, to its stated
+                    // certainty, to lie below what the budget tolerates.
+                    if (discards > (long)options.MaxDiscardRatio * Math.Max(passed, options.RunCount)
+                        || DiscardHealthCheck.ShouldGiveUp(passed, discards, options.MaxDiscardRatio))
                     {
                         return PropertyResult.Exhausted<T>(seed, passed, discards, explicitExamples, Snapshot());
                     }
