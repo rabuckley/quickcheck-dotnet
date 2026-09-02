@@ -28,6 +28,38 @@ public sealed class PropertyAttributeTests(ITestOutputHelper output)
 
     private static Generator<int> Even { get; } = Generate.Integer<int>().Select(static x => x * 2);
 
+    public sealed class Store
+    {
+        private readonly Dictionary<int, int> _entries = [];
+
+        public void Put(int key, int value) => _entries[key] = value;
+
+        public int Get(int key) => _entries.GetValueOrDefault(key);
+    }
+
+    public sealed record Put(int Key, int Value) : ICommand<Dictionary<int, int>, Store>
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model)
+        {
+            model[Key] = Value;
+            return model;
+        }
+
+        public void Run(Dictionary<int, int> model, Store store) => store.Put(Key, Value);
+    }
+
+    public sealed record Get(int Key) : ICommand<Dictionary<int, int>, Store>
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model) => model;
+
+        public void Run(Dictionary<int, int> model, Store store) => Assert.Equal(model.GetValueOrDefault(Key), store.Get(Key));
+    }
+
+    private static Generator<CommandSequence<Dictionary<int, int>, Store>> StoreSequences { get; } =
+        Generate.CommandSequence(() => new Dictionary<int, int>(), static _ => Generate.Frequency(
+            (2, Generate.Build(Generate.Between(0, 3), Generate.Between(0, 100), ICommand<Dictionary<int, int>, Store> (key, value) => new Put(key, value))),
+            (1, Generate.Between(0, 3).Select(ICommand<Dictionary<int, int>, Store> (key) => new Get(key)))));
+
     [Property]
     public void Property_WithIntStringAndListParameters_ShouldGenerateThemByDefault(int x, string s, List<byte> bytes)
     {
@@ -92,6 +124,14 @@ public sealed class PropertyAttributeTests(ITestOutputHelper output)
     public void Property_WithNamedGeneratorOnTheTestClass_ShouldUseIt([Generator(nameof(Even))] int x)
     {
         Assert.Equal(0, x % 2);
+    }
+
+    [Property(Seed = 42)]
+    public void Property_WithCommandSequenceFromNamedGenerator_ShouldRunItAgainstTheSystem(
+        [Generator(nameof(StoreSequences))] CommandSequence<Dictionary<int, int>, Store> sequence)
+    {
+        Assert.NotEmpty(sequence.Commands);
+        sequence.Run(new Store());
     }
 
     [Property(Generators = typeof(Generators))]
