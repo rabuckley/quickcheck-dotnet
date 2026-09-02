@@ -1,3 +1,6 @@
+using static QuickCheck.Tests.CommandSequenceTests;
+using StoreCommand = QuickCheck.ICommand<System.Collections.Generic.Dictionary<int, int>, QuickCheck.Tests.CommandSequenceTests.Store>;
+
 namespace QuickCheck.Tests;
 
 public sealed class ShrinkingTests
@@ -434,5 +437,131 @@ public sealed class ShrinkingTests
         Assert.InRange(result.ShrinkAttempts, 1, 20);
         Assert.Equal(ShrinkLimit.Work, result.ShrinkLimit);
         Assert.Contains("MaxShrinkWork", result.ToString());
+    }
+
+    /// <summary>The store commands over keys wide enough that two of them rarely agree by chance.</summary>
+    private static Generator<StoreCommand> WideKeyNext(Dictionary<int, int> model) => Generate.Frequency(
+        (3, Generate.Build(Generate.Between(0, 1000), Generate.Between(0, 100), StoreCommand (key, value) => new Put(key, value))),
+        (2, Generate.Between(0, 1000).Select(StoreCommand (key) => new Get(key))));
+
+    [Fact]
+    public void Shrinking_WithATwoCommandBug_ShouldFindTheShortestSequenceWithAgreeingKeys()
+    {
+        // Arrange
+        var generator = Generate.CommandSequence(() => new Dictionary<int, int>(), WideKeyNext);
+        var property = Property.ForAll(generator, sequence => sequence.Run(new Store(StoreBug.DropsLargeKeys)));
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([new Put(101, 1), new Get(101)], result.Minimal.Value.Commands);
+        Assert.Equal(ShrinkLimit.None, result.ShrinkLimit);
+    }
+
+    [Fact]
+    public void Shrinking_WithAPrecondition_ShouldNeverRunACommandInAStateItForbids()
+    {
+        // Arrange
+        var tripwireHits = 0;
+        var property = Property.ForAll(StoreSequences(), sequence =>
+        {
+            try
+            {
+                sequence.Run(new Store(StoreBug.ReturnsDeletedValues));
+            }
+            catch (PreconditionViolatedException)
+            {
+                tripwireHits++;
+                throw;
+            }
+        });
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([new Put(0, 1), new Delete(0), new Get(0)], result.Minimal.Value.Commands);
+        Assert.IsType<Xunit.Sdk.EqualException>(result.Minimal.Exception);
+        Assert.Equal(0, tripwireHits);
+    }
+
+    [Fact]
+    public void Shrinking_WithAnInvariantViolation_ShouldFindTheShortestSequenceThatBreaksIt()
+    {
+        // Arrange
+        var property = Property.ForAll(StoreSequences(), sequence =>
+            sequence.Run(new Store(StoreBug.DeleteLeavesCount), (model, store) => Assert.Equal(model.Count, store.Count)));
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([new Put(0, 0), new Delete(0)], result.Minimal.Value.Commands);
+    }
+
+    private sealed class BoundedStack(int capacity)
+    {
+        private readonly Stack<int> _values = new();
+
+        public int Count => _values.Count;
+
+        public void Push(int value)
+        {
+            if (_values.Count < capacity)
+            {
+                _values.Push(value);
+            }
+        }
+
+        public int Pop() => _values.Pop();
+    }
+
+    private sealed record Push(int Value) : ICommand<List<int>, BoundedStack>
+    {
+        public List<int> Update(List<int> model)
+        {
+            model.Add(Value);
+            return model;
+        }
+
+        public void Run(List<int> model, BoundedStack stack)
+        {
+            stack.Push(Value);
+            Assert.Equal(model.Count + 1, stack.Count);
+        }
+    }
+
+    private sealed record Pop : ICommand<List<int>, BoundedStack>
+    {
+        public bool Precondition(List<int> model) => model.Count > 0;
+
+        public List<int> Update(List<int> model)
+        {
+            model.RemoveAt(model.Count - 1);
+            return model;
+        }
+
+        public void Run(List<int> model, BoundedStack stack) => Assert.Equal(model[^1], stack.Pop());
+    }
+
+    [Fact]
+    public void Shrinking_WithACapacityBug_ShouldFindExactlyEnoughPushesAndNoPops()
+    {
+        // Arrange
+        var generator = Generate.CommandSequence<List<int>, BoundedStack>(() => [], _ => Generate.Frequency(
+            (2, Generate.Between(0, 100).Select(ICommand<List<int>, BoundedStack> (value) => new Push(value))),
+            (1, Generate.Constant<ICommand<List<int>, BoundedStack>>(new Pop()))));
+        var property = Property.ForAll(generator, sequence => sequence.Run(new BoundedStack(3)));
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([new Push(0), new Push(0), new Push(0), new Push(0)], result.Minimal.Value.Commands);
     }
 }
