@@ -246,9 +246,13 @@ Two ways to run a property:
 - `Assert(options)` throws `PropertyFailedException` on any outcome other than `Passed`. The exception message is the report shown above.
 - `Check(options)` returns a `PropertyResult<T>` without throwing with some extra useful information. `result.ThrowIfFailed()` turns it back into the exception, and `result.ToString()` is the report.
 
+Either way, a generator that throws ends the check like any other failure rather than escaping it: the outcome is `GenerationFailed`, `result.GenerationException` is what it threw, and the report carries the seed and a replay token for the draw.
+
 ### Preconditions
 
 `Property.Assume(condition)` discards the current example when a precondition does not hold. Prefer a generator that only produces valid inputs. Note that a property that discards too much is reported as `Exhausted` rather than passing on only a few examples, with the estimated discard rate in the report.
+
+A generator is held to the same rule: it must return a value or discard the example, with `Property.Assume` or `Where`. Any other exception it throws is a defect in the generator, not an input the check tolerates, so it ends the check.
 
 ### Explicit examples
 

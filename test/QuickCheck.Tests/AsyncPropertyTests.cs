@@ -275,6 +275,28 @@ public sealed class AsyncPropertyTests
     }
 
     [Fact]
+    public async Task CheckAsync_WithThrowingGenerator_ShouldFailTheCheckWithTheExceptionAndAReplay()
+    {
+        // Arrange
+        var brittle = Generate.Between(0, 9).Select(
+            static int (n) => n > 4 ? throw new InvalidOperationException($"cannot build {n}") : n);
+
+        var property = Property.ForAll(brittle, async x =>
+        {
+            await Task.Yield();
+            _ = x;
+        });
+
+        // Act
+        var result = await property.CheckAsync(new CheckOptions { Seed = 4 });
+
+        // Assert
+        Assert.True(result.IsGenerationFailed);
+        Assert.StartsWith("cannot build ", result.GenerationException.Message, StringComparison.Ordinal);
+        Assert.NotNull(result.Replay);
+    }
+
+    [Fact]
     public void Report_WithCustomReplayHint_ShouldCarryIt()
     {
         // Arrange

@@ -80,10 +80,11 @@ public sealed class AsyncProperty<T>
     /// </param>
     /// <returns>A task that completes when the check has finished.</returns>
     /// <exception cref="PropertyFailedException">
-    /// The property was falsified, too many examples were discarded, or a coverage requirement was
-    /// not met. The message is the report of the check; a property falsified by a generated example
-    /// reports the minimal counterexample and how to replay it, and one falsified by an explicit
-    /// example reports that example as it was given.
+    /// The property was falsified, too many examples were discarded, a coverage requirement was not
+    /// met, or a generator threw while producing an example. The message is the report of the
+    /// check; a property falsified by a generated example reports the minimal counterexample and
+    /// how to replay it, one falsified by an explicit example reports that example as it was given,
+    /// and a generator that threw reports its exception and how to replay the draw.
     /// </exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="options"/> sets <see cref="CheckOptions.Replay"/> and the property has

@@ -22,5 +22,11 @@ public enum PropertyOutcome
     /// to the certainty of <see cref="CheckOptions.CoverageConfidence"/>. Only that option produces
     /// this outcome; by default an unmet requirement is a warning on a <see cref="Passed"/> result.
     /// </summary>
-    InsufficientCoverage
+    InsufficientCoverage,
+
+    /// <summary>
+    /// A generator threw while producing an example, so the check ended without the property being
+    /// checked on it.
+    /// </summary>
+    GenerationFailed
 }

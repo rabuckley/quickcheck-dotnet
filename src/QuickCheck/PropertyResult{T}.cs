@@ -22,8 +22,8 @@ public sealed class PropertyResult<T>
     public required ulong Seed { get; init; }
 
     /// <summary>
-    /// Gets the number of examples that passed, or, when the property was falsified, the number that
-    /// passed before the failing one.
+    /// Gets the number of examples that passed, or, when the check stopped on an example, the
+    /// number that passed before that one.
     /// </summary>
     public required int TestsRun { get; init; }
 
@@ -51,9 +51,10 @@ public sealed class PropertyResult<T>
     public Counterexample<T>? Minimal { get; init; }
 
     /// <summary>
-    /// Gets the token that reproduces the failing example through <see cref="CheckOptions.Replay"/>,
-    /// or <see langword="null"/> if the property was not falsified or the failing example was a
-    /// pinned one; see <see cref="Counterexample{T}.IsExplicit"/>.
+    /// Gets the token that reproduces the example the check stopped on through
+    /// <see cref="CheckOptions.Replay"/>, or <see langword="null"/> when there is no such example.
+    /// A check that passed or was exhausted stopped on none, and a pinned counterexample was never
+    /// drawn from a seed and run number; see <see cref="Counterexample{T}.IsExplicit"/>.
     /// </summary>
     public Replay? Replay { get; init; }
 
@@ -79,13 +80,25 @@ public sealed class PropertyResult<T>
     /// </summary>
     public PropertyStatistics Statistics { get; init; } = PropertyStatistics.Empty;
 
+    /// <summary>
+    /// Gets the exception a generator threw while producing an example, or <see langword="null"/>
+    /// when generation did not fail.
+    /// </summary>
+    public Exception? GenerationException { get; init; }
+
     /// <summary>Gets a value indicating whether an example falsified the property.</summary>
     [MemberNotNullWhen(true, nameof(Original), nameof(Minimal))]
     public bool IsFalsified => Outcome is PropertyOutcome.Falsified;
 
     /// <summary>
-    /// Throws a <see cref="PropertyFailedException"/> if the property was falsified, the check was
-    /// exhausted, or a coverage requirement was not met.
+    /// Gets a value indicating whether a generator threw while producing an example.
+    /// </summary>
+    [MemberNotNullWhen(true, nameof(GenerationException))]
+    public bool IsGenerationFailed => Outcome is PropertyOutcome.GenerationFailed;
+
+    /// <summary>
+    /// Throws a <see cref="PropertyFailedException"/> if <see cref="Outcome"/> is anything other
+    /// than <see cref="PropertyOutcome.Passed"/>.
     /// </summary>
     /// <exception cref="PropertyFailedException">
     /// <see cref="Outcome"/> is not <see cref="PropertyOutcome.Passed"/>.
@@ -94,8 +107,8 @@ public sealed class PropertyResult<T>
 
     /// <summary>
     /// Throws a <see cref="PropertyFailedException"/> whose report replaces the replay
-    /// instruction, if the property was falsified, the check was exhausted, or a coverage
-    /// requirement was not met.
+    /// instruction, if <see cref="Outcome"/> is anything other than
+    /// <see cref="PropertyOutcome.Passed"/>.
     /// </summary>
     /// <param name="replayHint">
     /// The instruction the report gives for reproducing a failure; see
@@ -108,7 +121,8 @@ public sealed class PropertyResult<T>
     {
         if (Outcome is not PropertyOutcome.Passed)
         {
-            throw new PropertyFailedException(ToString(replayHint), Minimal?.Exception);
+            throw new PropertyFailedException(
+                ToString(replayHint), Minimal?.Exception ?? GenerationException);
         }
     }
 
@@ -202,6 +216,25 @@ public sealed class PropertyResult<T>
                         .Append(ShrinkLimit is ShrinkLimit.Attempts ? "MaxShrinkAttempts" : "MaxShrinkWork")
                         .Append(" ran out, so a smaller counterexample may exist.");
                 }
+
+                report.AppendLine();
+
+                report.Append("  Replay with: ")
+                    .Append(replayHint ?? $"new CheckOptions {{ Replay = Replay.Parse(\"{Replay}\") }}");
+
+                break;
+
+            case PropertyOutcome.GenerationFailed:
+                report.Append($"A generator failed after {TestsRun} tests");
+                AppendExplicitExamples(report);
+                AppendDiscards(report);
+                report.Append($" (seed {Seed}).");
+                AppendDiscardedExamples(report);
+                AppendException(report, GenerationException);
+                report.AppendLine();
+
+                report.Append("  A generator must return a value or discard the example with ")
+                    .Append("Property.Assume or Where; any other exception ends the check.");
 
                 report.AppendLine();
 

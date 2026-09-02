@@ -202,15 +202,99 @@ public sealed class PropertyTests
         Assert.Equal(PropertyOutcome.Exhausted, result.Outcome);
     }
 
+    // A generator that refuses some of the values it can draw: the check reaches one of them
+    // eventually, so the failure lands on a generated example rather than on the first draw.
+    private static Generator<int> Brittle { get; } = Generate.Between(0, 9).Select(
+        static int (n) => n > 4 ? throw new InvalidOperationException($"cannot build {n}") : n);
+
     [Fact]
-    public void Check_WithThrowingGenerator_ShouldPropagateTheExceptionRatherThanFailTheProperty()
+    public void Check_WithThrowingGenerator_ShouldFailTheCheckWithTheExceptionAndAReplay()
     {
         // Arrange
-        var broken = Generate.From<int>(static _ => throw new InvalidOperationException("bad generator"));
-        var property = Property.ForAll(broken, static _ => true);
+        var property = Property.ForAll(Brittle, static _ => true);
 
-        // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => property.Check());
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 4 });
+
+        // Assert
+        Assert.Equal(PropertyOutcome.GenerationFailed, result.Outcome);
+        Assert.True(result.IsGenerationFailed);
+        Assert.StartsWith("cannot build ", result.GenerationException.Message, StringComparison.Ordinal);
+        Assert.Equal(4ul, result.Seed);
+        Assert.NotNull(result.Replay);
+        Assert.Equal(4ul, result.Replay.Value.Seed);
+    }
+
+    [Fact]
+    public void Check_WithTheReplayOfAGenerationFailure_ShouldReproduceIt()
+    {
+        // Arrange
+        var property = Property.ForAll(Brittle, static _ => true);
+        var result = property.Check(new CheckOptions { Seed = 5 });
+
+        // Act
+        var replayed = property.Check(new CheckOptions { Replay = result.Replay!.Value });
+
+        // Assert
+        Assert.Equal(PropertyOutcome.GenerationFailed, replayed.Outcome);
+        Assert.Equal(result.GenerationException!.Message, replayed.GenerationException!.Message);
+    }
+
+    [Fact]
+    public void Assert_WithThrowingGenerator_ShouldThrowNamingTheSeedTheExceptionAndTheReplay()
+    {
+        // Arrange
+        var property = Property.ForAll(Brittle, static _ => true);
+
+        // Act
+        var exception = Assert.Throws<PropertyFailedException>(() => property.Assert(new CheckOptions { Seed = 6 }));
+
+        // Assert
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+        Assert.Contains("A generator failed after", exception.Message);
+        Assert.Contains("(seed 6)", exception.Message);
+        Assert.Contains("threw System.InvalidOperationException: cannot build", exception.Message);
+        Assert.Contains("Replay = Replay.Parse(\"6:", exception.Message);
+    }
+
+    [Fact]
+    public void Check_WithGeneratorThatAssumes_ShouldDiscardRatherThanFailGeneration()
+    {
+        // Arrange
+        var discarding = Generate.Between(0, 9).Select(static n =>
+        {
+            Property.Assume(n <= 4);
+            return n;
+        });
+        var property = Property.ForAll(discarding, static n => n <= 4);
+
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 7, RunCount = 50 });
+
+        // Assert
+        Assert.Equal(PropertyOutcome.Passed, result.Outcome);
+        Assert.True(result.Discards > 0);
+    }
+
+    [Fact]
+    public void Check_WithGeneratorCancelledMidDraw_ShouldPropagateTheCancellation()
+    {
+        // Arrange
+        using var cancellation = new CancellationTokenSource();
+
+        var property = Property.ForAll(
+            Generate.From<int>(_ =>
+            {
+                cancellation.Cancel();
+                throw new OperationCanceledException(cancellation.Token);
+            }),
+            static _ => true);
+
+        // Act
+        void Act() => property.Check(cancellationToken: cancellation.Token);
+
+        // Assert
+        Assert.Throws<OperationCanceledException>(Act);
     }
 
     private sealed class MultiLineValue

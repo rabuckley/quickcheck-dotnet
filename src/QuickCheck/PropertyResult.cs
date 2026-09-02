@@ -39,6 +39,32 @@ internal static class PropertyResult
         Statistics = statistics
     };
 
+    /// <summary>
+    /// The result of a generator throwing on a freshly drawn choice sequence, which ends the check
+    /// without the property being checked on that example. It carries a
+    /// <see cref="PropertyResult{T}.Replay"/> because the seed and run number that drew the
+    /// sequence draw it again, and no counterexample because no value was produced.
+    /// </summary>
+    public static PropertyResult<T> GenerationFailed<T>(
+        ulong seed,
+        int testsRun,
+        int discards,
+        ExplicitExampleCounts explicitExamples,
+        Replay replay,
+        Exception exception,
+        PropertyStatistics statistics) => new()
+    {
+        Outcome = PropertyOutcome.GenerationFailed,
+        Seed = seed,
+        TestsRun = testsRun,
+        Discards = discards,
+        ExplicitExamplesRun = explicitExamples.Run,
+        ExplicitExamplesDiscarded = explicitExamples.Discarded,
+        Statistics = statistics,
+        Replay = replay,
+        GenerationException = exception
+    };
+
     public static PropertyResult<T> InsufficientCoverage<T>(
         ulong seed,
         int testsRun,

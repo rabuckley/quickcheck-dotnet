@@ -537,27 +537,14 @@ internal sealed class Shrinker<T>
             return false;
         }
 
-        ExampleRun<T> run;
+        var run = await ExampleRun
+            .ExecuteAsync(ChoiceSource.FromPrefix(candidate), _generator, _body, _cancellationToken)
+            .ConfigureAwait(false);
 
-        try
-        {
-            run = await ExampleRun
-                .ExecuteAsync(ChoiceSource.FromPrefix(candidate), _generator, _body, _cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (_cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            // Only the generator can throw out of ExecuteAsync (the body's exceptions are already
-            // a Failed status). An edited choice sequence can describe a value the generator
-            // refuses to build, such as members that a constructor guard relates; that candidate
-            // is not a counterexample, and the best so far still is.
-            return false;
-        }
-
+        // An edited choice sequence can describe a value the generator refuses to build, such as
+        // members that a constructor guard relates; that GenerationFailed run is not a failure, so
+        // the candidate is rejected and the best so far still stands. Only an unedited sequence
+        // reports a throwing generator, from PropertyRunner.
         if (!run.IsFailure || run.Key != _key || !IsSimpler(run.Choices, _best.Choices))
         {
             return false;

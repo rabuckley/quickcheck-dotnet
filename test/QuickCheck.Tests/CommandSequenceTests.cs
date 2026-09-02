@@ -222,19 +222,21 @@ public sealed class CommandSequenceTests
     }
 
     [Fact]
-    public void CommandSequence_WhenCommandThrows_ShouldPropagateOutOfCheck()
+    public void CommandSequence_WhenACommandGeneratorThrows_ShouldFailTheCheckWithThatException()
     {
         // Arrange
+        // Elements over the empty model refuses the very first step, so nothing is drawn before it.
         var generator = Generate.CommandSequence(
             () => new Dictionary<int, int>(),
             model => Generate.Elements(model.Keys).Select(ICommand<Dictionary<int, int>, Store> (key) => new Delete(key)));
         var property = Property.ForAll(generator, static _ => true);
 
         // Act
-        void Act() => property.Check(new CheckOptions { Seed = 7 });
+        var result = property.Check(new CheckOptions { Seed = 7 });
 
         // Assert
-        Assert.Throws<ArgumentException>(Act);
+        Assert.True(result.IsGenerationFailed);
+        Assert.IsType<ArgumentException>(result.GenerationException);
     }
 
     [Fact]

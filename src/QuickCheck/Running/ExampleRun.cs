@@ -14,9 +14,9 @@ internal static class ExampleRun
     /// Generates one example and runs <paramref name="body"/> on it.
     /// </summary>
     /// <remarks>
-    /// <paramref name="cancellationToken"/> is not passed to the body; it only distinguishes a body
-    /// that abandoned the check because that token was cancelled — which propagates — from one that
-    /// threw, which becomes a counterexample.
+    /// <paramref name="cancellationToken"/> is not passed to the generator or the body; it only
+    /// distinguishes one that abandoned the check because that token was cancelled — which
+    /// propagates — from one that threw, which is recorded as a run of its own.
     /// </remarks>
     public static async ValueTask<ExampleRun<T>> ExecuteAsync<T>(
         ChoiceSource source,
@@ -32,13 +32,15 @@ internal static class ExampleRun
         }
         catch (DiscardException)
         {
-            return new ExampleRun<T>
-            {
-                Status = ExampleStatus.Discarded,
-                Choices = source.Recorded,
-                Spans = source.Spans,
-                Value = default!
-            };
+            return WithoutValue(ExampleStatus.Discarded);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            return WithoutValue(ExampleStatus.GenerationFailed, exception);
         }
 
         var outcome = await RunBodyAsync(value, body, cancellationToken).ConfigureAwait(false);
@@ -51,6 +53,17 @@ internal static class ExampleRun
             Value = value,
             Statistics = outcome.Statistics,
             Exception = outcome.Exception
+        };
+
+        // A run that ended inside the generator has no value to carry; its choices are the ones
+        // drawn before the generator stopped, which are what replay it.
+        ExampleRun<T> WithoutValue(ExampleStatus status, Exception? exception = null) => new()
+        {
+            Status = status,
+            Choices = source.Recorded,
+            Spans = source.Spans,
+            Value = default!,
+            Exception = exception
         };
     }
 

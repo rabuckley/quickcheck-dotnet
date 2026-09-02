@@ -183,6 +183,16 @@ internal sealed class PropertyRunner<T>
                         Snapshot(),
                         options,
                         cancellationToken).ConfigureAwait(false);
+
+                case ExampleStatus.GenerationFailed:
+                    return PropertyResult.GenerationFailed<T>(
+                        seed,
+                        passed,
+                        discards,
+                        explicitExamples,
+                        new Replay(seed, run),
+                        example.Exception!,
+                        Snapshot());
             }
         }
 
@@ -221,6 +231,14 @@ internal sealed class PropertyRunner<T>
                 discards: 0,
                 ExplicitExampleCounts.None,
                 SingleExampleStatistics(example.Statistics!)),
+            ExampleStatus.GenerationFailed => PropertyResult.GenerationFailed<T>(
+                replay.Seed,
+                testsRun: 0,
+                discards: 0,
+                ExplicitExampleCounts.None,
+                replay,
+                example.Exception!,
+                PropertyStatistics.Empty),
             _ => PropertyResult.Exhausted<T>(
                 replay.Seed, testsRun: 0, discards: 1, ExplicitExampleCounts.None, PropertyStatistics.Empty)
         };

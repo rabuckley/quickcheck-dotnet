@@ -9,6 +9,12 @@ namespace QuickCheck.Xunit.Tests;
 /// </summary>
 public sealed class PropertyTestCaseTests
 {
+    public readonly record struct Brittle(int Value) : IArbitrary<Brittle>
+    {
+        public static Generator<Brittle> Arbitrary { get; } = Generate.Between(0, 9).Select(
+            static Brittle (n) => n > 4 ? throw new InvalidOperationException($"cannot build {n}") : new Brittle(n));
+    }
+
     private sealed class Samples
     {
         public static int Invocations;
@@ -31,6 +37,8 @@ public sealed class PropertyTestCaseTests
         public void Assumes_the_impossible(int x) => Property.Assume(false);
 
         public void Divides(int a, int b) => _ = a / b;
+
+        public void Draws_a_brittle_value(Brittle value) => _ = value;
 
         public static void Static_and_cancels(int x)
         {
@@ -215,6 +223,25 @@ public sealed class PropertyTestCaseTests
         Assert.Contains("Minimal counterexample: a = 0, b = 0", failed.Messages[0]);
         Assert.Contains("threw System.DivideByZeroException", failed.Messages[0]);
         Assert.Contains(typeof(DivideByZeroException).FullName, failed.ExceptionTypes);
+    }
+
+    [Fact]
+    public async Task PropertyTestCase_WithThrowingGenerator_ShouldFailWithTheAttributeReplayHint()
+    {
+        // Arrange
+        var attribute = new PropertyAttribute { Seed = 4 };
+
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Draws_a_brittle_value), attribute);
+
+        // Assert
+        var failed = Assert.Single(messages.OfType<ITestFailed>());
+        Assert.Equal(typeof(PropertyFailedException).FullName, failed.ExceptionTypes[0]);
+        Assert.Contains(typeof(InvalidOperationException).FullName, failed.ExceptionTypes);
+        Assert.Contains("A generator failed after", failed.Messages[0]);
+        Assert.Contains("threw System.InvalidOperationException: cannot build", failed.Messages[0]);
+        Assert.Contains("Replay with: [Property(Replay = \"4:", failed.Messages[0]);
+        Assert.Empty(messages.OfType<ITestPassed>());
     }
 
     [Fact]

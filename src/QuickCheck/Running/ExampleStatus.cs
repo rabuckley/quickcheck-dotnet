@@ -4,5 +4,6 @@ internal enum ExampleStatus
 {
     Passed,
     Discarded,
-    Failed
+    Failed,
+    GenerationFailed
 }

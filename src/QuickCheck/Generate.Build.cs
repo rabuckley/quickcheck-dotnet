@@ -19,8 +19,8 @@ public static partial class Generate
     /// <remarks>
     /// <para>
     /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
-    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
-    /// check with that exception.
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception ends the
+    /// check, which reports that exception and the token that replays the draw.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
@@ -68,8 +68,8 @@ public static partial class Generate
     /// <remarks>
     /// <para>
     /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
-    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
-    /// check with that exception.
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception ends the
+    /// check, which reports that exception and the token that replays the draw.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
@@ -121,8 +121,8 @@ public static partial class Generate
     /// <remarks>
     /// <para>
     /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
-    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
-    /// check with that exception.
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception ends the
+    /// check, which reports that exception and the token that replays the draw.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
@@ -182,8 +182,8 @@ public static partial class Generate
     /// <remarks>
     /// <para>
     /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
-    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
-    /// check with that exception.
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception ends the
+    /// check, which reports that exception and the token that replays the draw.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
@@ -249,8 +249,8 @@ public static partial class Generate
     /// <remarks>
     /// <para>
     /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
-    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
-    /// check with that exception.
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception ends the
+    /// check, which reports that exception and the token that replays the draw.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
@@ -321,8 +321,8 @@ public static partial class Generate
     /// <remarks>
     /// <para>
     /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
-    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
-    /// check with that exception.
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception ends the
+    /// check, which reports that exception and the token that replays the draw.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
@@ -398,8 +398,8 @@ public static partial class Generate
     /// <remarks>
     /// <para>
     /// A <see cref="DiscardException"/> thrown by <paramref name="construct"/>, as
-    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception fails the
-    /// check with that exception.
+    /// <see cref="Property.Assume(bool)"/> does, discards the example; any other exception ends the
+    /// check, which reports that exception and the token that replays the draw.
     /// </para>
     /// <para>
     /// The values are drawn independently of one another. To generate values that a relation ties
