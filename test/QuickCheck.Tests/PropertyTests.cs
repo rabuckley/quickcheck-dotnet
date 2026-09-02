@@ -212,4 +212,24 @@ public sealed class PropertyTests
         // Act & Assert
         Assert.Throws<InvalidOperationException>(() => property.Check());
     }
+
+    private sealed class MultiLineValue
+    {
+        public override string ToString() => "first line" + Environment.NewLine + "second line";
+    }
+
+    [Fact]
+    public void Report_WithMultiLineCounterexample_ShouldIndentItsContinuationLines()
+    {
+        // Arrange
+        var property = Property.ForAll(Generate.Constant(new MultiLineValue()), static void (_) =>
+            throw new InvalidOperationException("expected one" + Environment.NewLine + "actual two"));
+
+        // Act
+        var report = property.Check(new CheckOptions { Seed = 3 }).ToString();
+
+        // Assert
+        Assert.Contains("  Minimal counterexample: first line" + Environment.NewLine + "    second line", report);
+        Assert.Contains("    threw System.InvalidOperationException: expected one" + Environment.NewLine + "    actual two", report);
+    }
 }

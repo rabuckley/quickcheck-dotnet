@@ -171,7 +171,8 @@ public sealed class PropertyResult<T>
                 report.Append($"Falsified by an explicit example (seed {Seed}).");
                 AppendDiscardedExamples(report);
                 report.AppendLine();
-                report.Append("  Counterexample: ").Append(Minimal);
+                report.Append("  Counterexample: ");
+                AppendIndented(report, Minimal!);
                 AppendException(report, Minimal!.Exception);
                 report.AppendLine();
                 report.Append("  An explicit example is checked as given, so it was not shrunk.");
@@ -181,13 +182,15 @@ public sealed class PropertyResult<T>
                 report.Append($"Falsified after {TestsRun + 1} tests and {Shrinks} shrinks (seed {Seed}).");
                 AppendDiscardedExamples(report);
                 report.AppendLine();
-                report.Append("  Minimal counterexample: ").Append(Minimal);
+                report.Append("  Minimal counterexample: ");
+                AppendIndented(report, Minimal!);
                 AppendException(report, Minimal!.Exception);
 
                 if (Shrinks > 0)
                 {
                     report.AppendLine();
-                    report.Append("  Original counterexample: ").Append(Original);
+                    report.Append("  Original counterexample: ");
+                    AppendIndented(report, Original!);
                     AppendException(report, Original!.Exception);
                 }
 
@@ -295,6 +298,12 @@ public sealed class PropertyResult<T>
             }
         }
 
+        // A value that prints on several lines (a command sequence, say) keeps its later lines
+        // under the first rather than flush with the headline; an exception message with several
+        // lines (an assertion's expected/actual) is indented the same way below.
+        static void AppendIndented(StringBuilder builder, Counterexample<T> counterexample) =>
+            builder.Append(counterexample.ToString().Replace("\n", "\n    ", StringComparison.Ordinal));
+
         static void AppendException(StringBuilder builder, Exception? exception)
         {
             if (exception is null)
@@ -307,7 +316,7 @@ public sealed class PropertyResult<T>
             builder.Append("    threw ")
                 .Append(exception.GetType().FullName)
                 .Append(": ")
-                .Append(exception.Message);
+                .Append(exception.Message.Replace("\n", "\n    ", StringComparison.Ordinal));
         }
     }
 
