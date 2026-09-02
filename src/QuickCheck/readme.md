@@ -8,6 +8,7 @@ This package is the core library containing generators, properties, shrinking an
 - [First property](#first-property)
 - [Generators](#generators)
 - [Properties](#properties)
+- [Stateful testing](#stateful-testing)
 - [Reproducing failures](#reproducing-failures)
 - [Statistics](#statistics)
 - [How shrinking works](#how-shrinking-works)
@@ -66,6 +67,7 @@ Generate.Tuple(genA, genB)
 Generate.Build(genA, genB, (a, b) => new Foo(a, b))   // one value from each, combined; two to eight generators
 Generate.Sequence(genA, genB)       // one value from each, as an array; any number of generators of one type
 Generate.Dictionary(keys, values)   // distinct keys; see Collection sizes
+Generate.CommandSequence(() => model, model => commands)   // operations against a model; see Stateful testing
 Generate.DateTime()                 // mostly 1900-2100, often round times, sometimes the bounds; DateTime(min, max) for a range
 Generate.DateOnly()                 // mostly 1900-2100, sometimes the bounds
 Generate.TimeOnly()                 // often round, sometimes the bounds
@@ -300,6 +302,142 @@ await Property.ForAll(Generate.String(), async s => Assert.Equal(s, await RoundT
 ```
 
 Make sure to await the result.
+
+## Stateful testing
+
+A property over one value says little about a system with state. Whether `Delete` is valid depends on the `Put`s before it, and what `Get` should return depends on both. Stateful testing makes the property range over a sequence of operations. You describe each operation as a command against a model, a simplification of the system that is enough to say which commands are valid and what the system should answer, and the property runs a generated sequence against the real system, comparing as it goes. The model is not a second implementation: a `Dictionary` is a fine model of a database.
+
+A command implements `ICommand<TModel, TSystem>` with three members. `Precondition(model)` says whether the command may follow that model state; the default is always. `Update(model)` returns the model state after the command, the same object when the model is mutable. `Run(model, system)` executes the command against the real system and asserts what it observes, given the model state before it. Records are the natural shape because a failure report prints them with their members:
+
+```csharp
+using Command = QuickCheck.ICommand<Dictionary<int, int>, Store>;
+
+sealed record Put(int Key, int Value) : Command
+{
+    public Dictionary<int, int> Update(Dictionary<int, int> model) { model[Key] = Value; return model; }
+    public void Run(Dictionary<int, int> model, Store store) => store.Put(Key, Value);
+}
+
+sealed record Get(int Key) : Command
+{
+    public Dictionary<int, int> Update(Dictionary<int, int> model) => model;
+    public void Run(Dictionary<int, int> model, Store store) =>
+        Assert.Equal(model.GetValueOrDefault(Key), store.Get(Key));
+}
+
+sealed record Delete(int Key) : Command
+{
+    public bool Precondition(Dictionary<int, int> model) => model.ContainsKey(Key);
+    public Dictionary<int, int> Update(Dictionary<int, int> model) { model.Remove(Key); return model; }
+    public void Run(Dictionary<int, int> model, Store store) => store.Delete(Key);
+}
+
+static Generator<Command> Next(Dictionary<int, int> model) => Generate.Frequency(
+    (3, Generate.Build(Generate.Between(0, 3), Generate.Between(0, 100), Command (key, value) => new Put(key, value))),
+    (2, Generate.Between(0, 3).Select(Command (key) => new Get(key))),
+    (1, Generate.Between(0, 3).Select(Command (key) => new Delete(key))));
+
+[Fact]
+public void Store_agrees_with_a_dictionary() =>
+    Property.ForAll(
+        Generate.CommandSequence(() => new Dictionary<int, int>(), Next),
+        sequence => sequence.Run(new Store(), (model, store) => Assert.Equal(model.Count, store.Count)))
+    .Assert();
+```
+
+`Generate.CommandSequence(initialModel, command, maxLength)` generates a sequence by advancing the model alone. For each step it calls `command` with the current model, draws a command from the generator it returns, redraws up to ten times while the precondition rejects it, and applies `Update`. `Run` is never called while generating. Ten rejections discard the example, so a specification with a state that offers no valid command shows up as discards rather than as short sequences; to end a sequence on purpose in a terminal state, return `null` from `command`. A sequence nearly always has `maxLength` commands (50 by default), because each step continues with probability 1 − 2⁻¹⁶, and the shrinker rather than the length draw finds the shortest failing prefix.
+
+`sequence.Run(system, invariant)` runs the commands in order against a fresh model from `initialModel`: `Run`, then `Update`, then the invariant, which is also checked before the first command. It returns the final model.
+
+Suppose `Put` ignores a write to a key that already holds a value. The 50-command original shrinks to three:
+
+```
+Falsified after 1 tests and 56 shrinks (seed 2024).
+  Minimal counterexample: Put { Key = 0, Value = 0 }
+    Put { Key = 0, Value = 1 }
+    Get { Key = 0 }
+    threw Xunit.Sdk.EqualException: Assert.Equal() Failure: Values differ
+    Expected: 1
+    Actual:   0
+  Original counterexample: Put { Key = 3, Value = 4 }
+    Get { Key = 0 }
+    Put { Key = 3, Value = 70 }
+    …
+  Replay with: new CheckOptions { Replay = Replay.Parse("2024:0") }
+```
+
+Shrinking deletes the commands the failure does not need and shrinks the arguments of the ones that remain. Every candidate is generated afresh against the model, so a precondition is re-evaluated in the shrunk state: `Delete` never runs on a key the model does not hold, however the sequence around it has been cut.
+
+### Writing commands
+
+**Return type.** `Generate.Between(0, 3).Select(key => new Get(key))` is a `Generator<Get>`, which is not a `Generator<Command>`. Name the return type on the lambda, `Command (key) => new Get(key)`, as the `Expression` example does.
+
+**One shape in every state.** Have `command` return a generator of the same shape whatever the model holds. The shrinker deletes a step by removing its choices, and the steps after it are then regenerated from the choices they already had; a step whose layout depends on the model reads those choices as something else and the deletion is rejected. Where a command has no valid argument in some state, keep it in the `Frequency` and let its precondition reject it, or draw from a placeholder, rather than leaving it out. `Frequency` and `OneOf` shrink towards their first generator, so list the command that is always applicable first.
+
+**Keys, not objects.** Every run of a sequence, including each replay while shrinking, starts from a new model, so a command may hold only what is equal across replays: a key, an id, or a value drawn from an immutable model. With a mutable model, never hold an object taken out of it. `Generate.Elements(model.Values)` into `Withdraw(Account Account, int Amount)` compiles and runs, but the account is the generation-time object, `Update` mutates it instead of the model being run, and the assertion fails on a nonsense minimum. Hold the key and look it up in the `model` argument of `Run`. For the same reason `initialModel` must return an equal model on every call.
+
+### Handles and ids
+
+A system that hands out handles (a file handle, a connection, a row id) cannot be modelled by holding them, because real results do not exist when the sequence is generated. Let the model assign sequential ids and let the system side map them to real handles as `Open` runs:
+
+```csharp
+sealed class Handles
+{
+    public int Next { get; set; }
+    public List<int> Open { get; } = [];
+}
+
+sealed record Open : ICommand<Handles, Files>
+{
+    public Handles Update(Handles model) { model.Open.Add(model.Next); model.Next++; return model; }
+    public void Run(Handles model, Files files) => files.ByModelId[model.Next] = files.Open();
+}
+
+sealed record Write(int Id) : ICommand<Handles, Files>
+{
+    public bool Precondition(Handles model) => model.Open.Contains(Id);
+    public Handles Update(Handles model) => model;
+    public void Run(Handles model, Files files) => files.Write(files.ByModelId[Id]);
+}
+
+static Generator<ICommand<Handles, Files>> Next(Handles model) => Generate.Frequency(
+    (2, Generate.Constant<ICommand<Handles, Files>>(new Open())),
+    (1, Generate.Elements(model.Open.AsEnumerable().Reverse().DefaultIfEmpty(-1))
+        .Select(ICommand<Handles, Files> (id) => new Write(id))));
+```
+
+`Files` is the system under test with a `Dictionary<int, FileHandle>` from model id to real handle beside it. `Open` knows its id because `Run` sees the model before the command, where `Next` is the id `Update` is about to assign. The open ids are listed newest first because `Elements` shrinks towards its first item: a command that refers to the newest handle lets the shrinker delete the earlier `Open`s, where one that refers to the oldest keeps them all. The `-1` placeholder keeps the generator the same shape when nothing is open, and the precondition rejects it.
+
+### Your own loop
+
+When `Run` does not fit, iterate `sequence.Commands` yourself: a scheduler over several replicas with a channel to drop messages from, an asynchronous system, a system that must be torn down in a `finally`. The guarantees are the sequence's, not `Run`'s: every command satisfied its precondition in the model state before it, and shrinking finds the shortest failing prefix whatever loop runs it.
+
+```csharp
+foreach (var command in sequence.Commands)
+{
+    switch (command)
+    {
+        case Write write: primary.Append(write.Value); channel.Enqueue(write.Value); break;
+        case Deliver: follower.Apply(channel.Dequeue()); break;
+        case Drop: channel.Dequeue(); break;
+    }
+}
+```
+
+With the xUnit adapter, a `[Property]` parameter of type `CommandSequence<TModel, TSystem>` takes its generator from a `[Generator(nameof(...))]` attribute, as any other type does.
+
+### Statistics over sequences
+
+`Collect` and `Cover` count each example once, so a table of command names would read 100% for every kind. Count what matters per example:
+
+```csharp
+Property.ForAll(Generate.CommandSequence(() => new Dictionary<int, int>(), Next), sequence =>
+{
+    Property.Collect("length", sequence.Commands.Count < 50 ? "under 50" : "50");
+    Property.Cover(sequence.Commands.Any(command => command is Delete), 50, "has a delete");
+    sequence.Run(new Store());
+}).Assert();
+```
 
 ## Reproducing failures
 

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Command = QuickCheck.ICommand<System.Collections.Generic.Dictionary<int, int>, QuickCheck.Tests.ReadmeTests.Store>;
 
 namespace QuickCheck.Tests;
 
@@ -22,6 +23,92 @@ public sealed class ReadmeTests
     private sealed record Literal(int Value) : Expression;
 
     private sealed record Add(Expression Left, Expression Right) : Expression;
+
+    public sealed class Store(bool ignoresOverwrites = false)
+    {
+        private readonly Dictionary<int, int> _entries = [];
+
+        public int Count => _entries.Count;
+
+        public void Put(int key, int value)
+        {
+            if (ignoresOverwrites && _entries.ContainsKey(key))
+            {
+                return;
+            }
+
+            _entries[key] = value;
+        }
+
+        public int Get(int key) => _entries.GetValueOrDefault(key);
+
+        public void Delete(int key) => _entries.Remove(key);
+    }
+
+    private sealed record Put(int Key, int Value) : Command
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model) { model[Key] = Value; return model; }
+        public void Run(Dictionary<int, int> model, Store store) => store.Put(Key, Value);
+    }
+
+    private sealed record Get(int Key) : Command
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model) => model;
+        public void Run(Dictionary<int, int> model, Store store) =>
+            Assert.Equal(model.GetValueOrDefault(Key), store.Get(Key));
+    }
+
+    private sealed record Delete(int Key) : Command
+    {
+        public bool Precondition(Dictionary<int, int> model) => model.ContainsKey(Key);
+        public Dictionary<int, int> Update(Dictionary<int, int> model) { model.Remove(Key); return model; }
+        public void Run(Dictionary<int, int> model, Store store) => store.Delete(Key);
+    }
+
+    private static Generator<Command> Next(Dictionary<int, int> model) => Generate.Frequency(
+        (3, Generate.Build(Generate.Between(0, 3), Generate.Between(0, 100), Command (key, value) => new Put(key, value))),
+        (2, Generate.Between(0, 3).Select(Command (key) => new Get(key))),
+        (1, Generate.Between(0, 3).Select(Command (key) => new Delete(key))));
+
+    /// <summary>The system of the readme's handle sample: real handles are indices into a list.</summary>
+    public sealed class Files
+    {
+        private readonly List<bool> _open = [];
+
+        public Dictionary<int, int> ByModelId { get; } = [];
+
+        public int Open()
+        {
+            _open.Add(true);
+            return _open.Count - 1;
+        }
+
+        public void Write(int handle) => Assert.True(_open[handle]);
+    }
+
+    private sealed class Handles
+    {
+        public int Next { get; set; }
+        public List<int> Open { get; } = [];
+    }
+
+    private sealed record Open : ICommand<Handles, Files>
+    {
+        public Handles Update(Handles model) { model.Open.Add(model.Next); model.Next++; return model; }
+        public void Run(Handles model, Files files) => files.ByModelId[model.Next] = files.Open();
+    }
+
+    private sealed record Write(int Id) : ICommand<Handles, Files>
+    {
+        public bool Precondition(Handles model) => model.Open.Contains(Id);
+        public Handles Update(Handles model) => model;
+        public void Run(Handles model, Files files) => files.Write(files.ByModelId[Id]);
+    }
+
+    private static Generator<ICommand<Handles, Files>> NextHandleCommand(Handles model) => Generate.Frequency(
+        (2, Generate.Constant<ICommand<Handles, Files>>(new Open())),
+        (1, Generate.Elements(model.Open.AsEnumerable().Reverse().DefaultIfEmpty(-1))
+            .Select(ICommand<Handles, Files> (id) => new Write(id))));
 
     private static Generator<Expression> Expressions() => Generate.Frequency(
         (3, Generate.Integer<int>().Select(Expression (value) => new Literal(value))),
@@ -293,5 +380,77 @@ public sealed class ReadmeTests
     {
         await Task.Yield();
         return value;
+    }
+
+    [Fact]
+    public void ReadmeSample_WithStoreCommands_ShouldPassAgainstACorrectStore()
+    {
+        // Arrange
+        var property = Property.ForAll(
+            Generate.CommandSequence(() => new Dictionary<int, int>(), Next),
+            sequence => sequence.Run(new Store(), (model, store) => Assert.Equal(model.Count, store.Count)));
+
+        // Act & Assert
+        property.Assert();
+    }
+
+    [Fact]
+    public void ReadmeSample_WithAStoreThatIgnoresOverwrites_ShouldShrinkToThreeCommandsAndReplay()
+    {
+        // Arrange
+        var property = Property.ForAll(
+            Generate.CommandSequence(() => new Dictionary<int, int>(), Next),
+            sequence => sequence.Run(new Store(ignoresOverwrites: true), (model, store) => Assert.Equal(model.Count, store.Count)));
+
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 2024 });
+        var replayed = property.Check(new CheckOptions { Replay = result.Replay });
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([new Put(0, 0), new Put(0, 1), new Get(0)], result.Minimal.Value.Commands);
+        Assert.Equal(
+            "  Minimal counterexample: Put { Key = 0, Value = 0 }" + Environment.NewLine
+            + "    Put { Key = 0, Value = 1 }" + Environment.NewLine
+            + "    Get { Key = 0 }",
+            result.ToString().Split(Environment.NewLine + "    threw ")[0].Split(Environment.NewLine, 2)[1]);
+        Assert.True(replayed.IsFalsified);
+        Assert.Equal(result.Original.Value.ToString(), replayed.Original!.Value.ToString());
+    }
+
+    [Fact]
+    public void ReadmeSample_WithHandleIds_ShouldMapModelIdsToRealHandles()
+    {
+        // Arrange
+        var property = Property.ForAll(
+            Generate.CommandSequence(() => new Handles(), NextHandleCommand),
+            sequence =>
+            {
+                Property.Cover(sequence.Commands.Any(static command => command is Write), 50, "writes");
+                sequence.Run(new Files());
+            });
+
+        // Act & Assert
+        property.Assert();
+    }
+
+    [Fact]
+    public void ReadmeSample_WithStatisticsOverSequences_ShouldReportThem()
+    {
+        // Arrange
+        var property = Property.ForAll(Generate.CommandSequence(() => new Dictionary<int, int>(), Next), sequence =>
+        {
+            Property.Collect("length", sequence.Commands.Count < 50 ? "under 50" : "50");
+            Property.Cover(sequence.Commands.Any(command => command is Delete), 50, "has a delete");
+            sequence.Run(new Store());
+        });
+
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 1 });
+
+        // Assert
+        Assert.Equal(PropertyOutcome.Passed, result.Outcome);
+        Assert.Contains("has a delete", result.ToString());
+        Assert.Contains("50", result.Statistics.Tables["length"].Keys);
     }
 }
