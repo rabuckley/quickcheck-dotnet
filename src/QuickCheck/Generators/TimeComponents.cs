@@ -4,17 +4,19 @@ namespace QuickCheck.Generators;
 
 /// <summary>
 /// Draws the date and time parts shared by the date and time generators, component-wise so that
-/// each component keeps its own uniform draw and boundary snapping while the whole value lands in
-/// [min, max]. Either part can be forced to a whole value while generating, which emits that value
-/// through the same components so it shrinks like a drawn one.
+/// each component keeps its own boundary snapping and shrinks on its own while the whole value
+/// lands in [min, max]. The year and month are weighted by the days they cover, so the date is
+/// uniform over its range; the time components are drawn uniformly. Either part can be forced to a
+/// whole value while generating, which emits that value through the same components so it shrinks
+/// like a drawn one.
 /// </summary>
 internal static class TimeComponents
 {
     private const int TicksPerMillisecond = (int)TimeSpan.TicksPerMillisecond;
 
     /// <summary>
-    /// Draws a date in [min, max]: the year, then a uniform month, then a uniform day of that month,
-    /// or forces each component to <paramref name="forced"/>'s while generating.
+    /// Draws a date uniformly in [min, max] as a year, a month and a day, or forces each
+    /// component to <paramref name="forced"/>'s while generating.
     /// </summary>
     public static DateOnly DrawDate(ChoiceSource source, DateOnly min, DateOnly max, DateOnly? forced = null) =>
         new CappedDraw(source).Date(min, max, forced);
@@ -62,15 +64,15 @@ internal static class TimeComponents
     {
         private const int ModernLow = 1900;
         private const int ModernHigh = 2100;
-        private const int TargetYear = 2000;
+        private static readonly int Epoch = new DateOnly(2000, 1, 1).DayNumber;
 
         private bool _lowActive = true;
         private bool _highActive = true;
 
         public DateOnly Date(DateOnly min, DateOnly max, DateOnly? forced)
         {
-            var year = Year(min.Year, max.Year, forced?.Year);
-            var month = Next(min.Month, max.Month, naturalLow: 1, naturalHigh: 12, forced?.Month);
+            var year = Year(min, max, forced);
+            var month = Month(year, min, max, forced);
             var day = Next(min.Day, max.Day, naturalLow: 1, naturalHigh: DateTime.DaysInMonth(year, month), forced?.Day);
             return new DateOnly(year, month, day);
         }
@@ -136,21 +138,22 @@ internal static class TimeComponents
         }
 
         /// <summary>
-        /// Draws a year in 1..9999, 2000 (or the bound nearest it) being the simplest, and three
-        /// draws in four falling in 1900..2100 when the capped range is wider than that band, or
-        /// forces it to <paramref name="forced"/>, clamped to the capped range, while generating.
+        /// Draws a year in 1..9999 weighted by the days of the capped range each year covers, 2000
+        /// (or the bound nearest it) being the simplest, and three draws in four falling in
+        /// 1900..2100 when the capped range is wider than that band, or forces it to
+        /// <paramref name="forced"/>'s year, clamped to the capped range, while generating.
         /// </summary>
-        private int Year(int minYear, int maxYear, int? forced)
+        private int Year(DateOnly min, DateOnly max, DateOnly? forced)
         {
-            var (low, high) = Bounds(minYear, maxYear, naturalLow: 1, naturalHigh: 9999);
+            var (low, high) = Bounds(min.Year, max.Year, naturalLow: 1, naturalHigh: 9999);
             var bandLow = Math.Max(low, ModernLow);
             var bandHigh = Math.Min(high, ModernHigh);
             var bandIsNarrower = bandLow <= bandHigh && (bandLow != low || bandHigh != high);
 
             if (bandIsNarrower)
             {
-                var bandChoice = forced is int year
-                    ? source.ForceChoice(year >= bandLow && year <= bandHigh ? 0UL : 3UL, 3)
+                var bandChoice = forced is { } forcedDate
+                    ? source.ForceChoice(forcedDate.Year >= bandLow && forcedDate.Year <= bandHigh ? 0UL : 3UL, 3)
                     : source.NextChoice(3);
 
                 if (bandChoice < 3)
@@ -159,9 +162,30 @@ internal static class TimeComponents
                 }
             }
 
-            var range = new IntegerRange<int>(low - TargetYear, high - TargetYear);
-            var value = (forced is int f ? range.Force(source, f - TargetYear) : range.Draw(source)) + TargetYear;
-            Advance(value, minYear, maxYear);
+            // When the band has replaced a bound's year, the bound's day no longer caps the range.
+            var dayLow = _lowActive && low == min.Year ? min.DayNumber : new DateOnly(low, 1, 1).DayNumber;
+            var dayHigh = _highActive && high == max.Year ? max.DayNumber : new DateOnly(high, 12, 31).DayNumber;
+            var range = new IntegerRange<int>(dayLow - Epoch, dayHigh - Epoch);
+            var day = forced is { } f ? range.Force(source, f.DayNumber - Epoch) : range.Draw(source);
+            var value = DateOnly.FromDayNumber(day + Epoch).Year;
+            Advance(value, min.Year, max.Year);
+            return value;
+        }
+
+        /// <summary>
+        /// Draws a month of <paramref name="year"/> weighted by the days of the capped range each
+        /// month covers, January (or the bound's month) being the simplest, or forces it to
+        /// <paramref name="forced"/>'s month, clamped to the capped range, while generating.
+        /// </summary>
+        private int Month(int year, DateOnly min, DateOnly max, DateOnly? forced)
+        {
+            var january1 = new DateOnly(year, 1, 1).DayNumber;
+            var dayLow = _lowActive ? min.DayNumber : january1;
+            var dayHigh = _highActive ? max.DayNumber : new DateOnly(year, 12, 31).DayNumber;
+            var range = new IntegerRange<int>(dayLow - january1, dayHigh - january1);
+            var day = forced is { } f ? range.Force(source, f.DayNumber - january1) : range.Draw(source);
+            var value = DateOnly.FromDayNumber(day + january1).Month;
+            Advance(value, min.Month, max.Month);
             return value;
         }
 

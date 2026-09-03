@@ -13,7 +13,7 @@ public static partial class Generate
     /// </param>
     /// <returns>
     /// A generator that produces values of <paramref name="kind"/>, draws the year in 1900..2100
-    /// three times in four and anywhere in 1..9999 otherwise, draws the month, day and time
+    /// three times in four and anywhere in 1..9999 otherwise, draws the date and the time
     /// components uniformly, produces a time that is midnight or a whole hour, minute, second or
     /// millisecond five times in six, produces <see cref="System.DateTime.MinValue"/> and
     /// <see cref="System.DateTime.MaxValue"/> more often than chance, and shrinks towards midnight
@@ -157,7 +157,7 @@ public static partial class Generate
     /// </summary>
     /// <returns>
     /// A generator that draws the year in 1900..2100 three times in four and anywhere in 1..9999
-    /// otherwise, draws the month and day uniformly, produces <see cref="System.DateOnly.MinValue"/>
+    /// otherwise, draws dates uniformly, produces <see cref="System.DateOnly.MinValue"/>
     /// and <see cref="System.DateOnly.MaxValue"/> more often than chance, and shrinks towards
     /// 1 January 2000.
     /// </returns>

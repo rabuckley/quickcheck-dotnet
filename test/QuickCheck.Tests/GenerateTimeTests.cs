@@ -178,6 +178,64 @@ public sealed class GenerateTimeTests
         // Act & Assert
         Assert.Equal(TimeSpan.FromMinutes(90), Minimal(Generate.TimeSpan(), static s => s < TimeSpan.FromMinutes(90)));
         Assert.Equal(new DateTime(2001, 1, 1), Minimal(Generate.DateTime(), static d => d.Year <= 2000));
+        Assert.Equal(new DateOnly(2000, 6, 1), Minimal(Generate.DateOnly(), static d => d < new DateOnly(2000, 6, 1)));
+    }
+
+    [Fact]
+    public void DateGenerators_WithABoundOnAYearOrMonthBoundary_ShouldGiveItItsShareOfTheDays()
+    {
+        // Arrange
+        var yearMin = new DateTime(2024, 1, 1);
+        var yearMax = new DateTime(2025, 1, 1);
+        var monthMin = new DateTime(2024, 1, 1);
+        var monthMax = new DateTime(2024, 6, 1);
+
+        // Act
+        var acrossYear = Generate.DateTime(yearMin, yearMax).Sample(count: 4000, seed: 40);
+        var acrossMonth = Generate.DateTime(monthMin, monthMax).Sample(count: 3000, seed: 41);
+
+        // Assert
+        Assert.All(acrossYear, d => Assert.InRange(d, yearMin, yearMax));
+        Assert.InRange(acrossYear.Count(static d => d.Year == 2025), 150, 350);
+        Assert.InRange(acrossMonth.Count(static d => d.Month == 6), 120, 300);
+    }
+
+    [Fact]
+    public void DateOnly_WithinOneMonth_ShouldDrawEachDayEvenly()
+    {
+        // Arrange
+        var min = new DateOnly(2024, 3, 10);
+        var max = new DateOnly(2024, 3, 20);
+
+        // Act
+        var samples = Generate.DateOnly(min, max).Sample(count: 2200, seed: 42);
+
+        // Assert
+        Assert.Equal(11, samples.Distinct().Count());
+        foreach (var day in Enumerable.Range(11, 9))
+        {
+            Assert.InRange(samples.Count(d => d.Day == day), 100, 260);
+        }
+    }
+
+    [Fact]
+    public void DateOnly_WithBoundsAcrossTheModernBandEdges_ShouldStayInRangeAndReachEveryDay()
+    {
+        // Arrange
+        var lowMin = new DateOnly(1899, 12, 25);
+        var lowMax = new DateOnly(1900, 1, 5);
+        var highMin = new DateOnly(2100, 12, 25);
+        var highMax = new DateOnly(2101, 1, 5);
+
+        // Act
+        var low = Generate.DateOnly(lowMin, lowMax).Sample(count: 2000, seed: 43);
+        var high = Generate.DateOnly(highMin, highMax).Sample(count: 2000, seed: 44);
+
+        // Assert
+        Assert.All(low, d => Assert.InRange(d, lowMin, lowMax));
+        Assert.All(high, d => Assert.InRange(d, highMin, highMax));
+        Assert.Equal(12, low.Distinct().Count());
+        Assert.Equal(12, high.Distinct().Count());
     }
 
     [Fact]
