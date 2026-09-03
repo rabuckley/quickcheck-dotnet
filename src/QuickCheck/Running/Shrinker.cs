@@ -4,7 +4,9 @@ namespace QuickCheck.Running;
 
 /// <summary>
 /// Minimises a failing example by editing its choice sequence and replaying
-/// it, keeping any candidate that fails the same way and is simpler in
+/// it, keeping any candidate that fails the same way (the same
+/// <see cref="FailureKey"/>: the same exception type from the same user
+/// frame, or returning <see langword="false"/> again) and is simpler in
 /// shortlex order (fewer choices, or equal length and lexicographically
 /// smaller values). That order strictly decreases with every accepted
 /// candidate, which guarantees termination.

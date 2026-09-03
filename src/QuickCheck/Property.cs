@@ -373,7 +373,9 @@ public static class Property
     {
         ArgumentNullException.ThrowIfNull(generator);
         ArgumentNullException.ThrowIfNull(body);
-        return new AsyncProperty<T>(generator, value => new ValueTask<bool>(body(value)));
+        // NoOptimization keeps the JIT from inlining the body into this adapter, which would remove
+        // the frame FailureKey uses to tell one failure site from another.
+        return new AsyncProperty<T>(generator, [MethodImpl(MethodImplOptions.NoOptimization)] (value) => new ValueTask<bool>(body(value)));
     }
 
     /// <summary>
@@ -496,15 +498,22 @@ public static class Property
             triple => body(triple.Item1, triple.Item2, triple.Item3));
     }
 
-    private static Func<T, bool> AsPredicate<T>(Action<T> body) => value =>
+    // NoOptimization on these adapters keeps the JIT from inlining the body into them, which would
+    // remove the frame FailureKey uses to tell one failure site from another. The asynchronous
+    // adapter calls the body from a plain lambda rather than an async one because an attribute on
+    // an async lambda lands on its stub, not on the MoveNext that makes the call.
+    private static Func<T, bool> AsPredicate<T>(Action<T> body) => [MethodImpl(MethodImplOptions.NoOptimization)] (value) =>
     {
         body(value);
         return true;
     };
 
-    private static Func<T, ValueTask<bool>> AsPredicate<T>(Func<T, Task> body) => async value =>
+    private static Func<T, ValueTask<bool>> AsPredicate<T>(Func<T, Task> body) =>
+        [MethodImpl(MethodImplOptions.NoOptimization)] (value) => AwaitAsync(body(value));
+
+    private static async ValueTask<bool> AwaitAsync(Task task)
     {
-        await body(value).ConfigureAwait(false);
+        await task.ConfigureAwait(false);
         return true;
-    };
+    }
 }

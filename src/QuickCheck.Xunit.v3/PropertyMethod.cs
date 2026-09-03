@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -11,6 +12,11 @@ namespace QuickCheck.Xunit;
 /// pins, ready to be turned into an <see cref="AsyncProperty{T}"/> over an
 /// instance of the test class.
 /// </summary>
+/// <remarks>
+/// Hidden from stack traces so that the frames between the test method and the core's body adapter
+/// neither clutter the trace xUnit prints nor count as the frame a failure came through.
+/// </remarks>
+[StackTraceHidden]
 internal sealed class PropertyMethod
 {
     private readonly MethodInfo _method;

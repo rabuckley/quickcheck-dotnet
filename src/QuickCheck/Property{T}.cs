@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using QuickCheck.Running;
 
 namespace QuickCheck;
@@ -18,7 +19,9 @@ public sealed class Property<T>
 
     internal Property(Generator<T> generator, Func<T, bool> body)
     {
-        _runner = new PropertyRunner<T>(generator, value => new ValueTask<bool>(body(value)));
+        // NoOptimization keeps the JIT from inlining the body into this adapter, which would remove
+        // the frame FailureKey uses to tell one failure site from another.
+        _runner = new PropertyRunner<T>(generator, [MethodImpl(MethodImplOptions.NoOptimization)] (value) => new ValueTask<bool>(body(value)));
         _examples = [];
     }
 

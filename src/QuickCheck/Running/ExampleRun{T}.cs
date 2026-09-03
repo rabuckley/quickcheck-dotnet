@@ -28,7 +28,7 @@ internal sealed class ExampleRun<T>
     /// </summary>
     public ExampleStatistics? Statistics { get; init; }
 
-    public FailureKey Key => new(Exception?.GetType());
+    public FailureKey Key => FailureKey.For(Exception);
 
     public bool IsFailure => Status is ExampleStatus.Failed;
 }

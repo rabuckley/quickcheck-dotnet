@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace QuickCheck;
@@ -43,6 +44,9 @@ public sealed class CommandSequence<TModel, TSystem>
     /// invariant propagates, which is how a failure is reported.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="system"/> is <see langword="null"/>.</exception>
+    // NoOptimization keeps the JIT from inlining a command or the invariant into this loop, which
+    // would remove the frame FailureKey uses to tell one failure site from another.
+    [MethodImpl(MethodImplOptions.NoOptimization)]
     public TModel Run(TSystem system, Action<TModel, TSystem>? invariant = null)
     {
         ArgumentNullException.ThrowIfNull(system);

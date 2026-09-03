@@ -564,4 +564,121 @@ public sealed class ShrinkingTests
         Assert.True(result.IsFalsified);
         Assert.Equal([new Push(0), new Push(0), new Push(0), new Push(0)], result.Minimal.Value.Commands);
     }
+
+    /// <summary>
+    /// Fails below 50 at one site and above 100 at another, with the same exception type at both.
+    /// Most seeds find the upper failure first; a key that told the two sites apart shrinks it to
+    /// 101, while an exception-type-only key crosses to the lower site and ends at 0.
+    /// </summary>
+    private static readonly Generator<int> TwoSiteInput = Generate.Between(0, 1000);
+
+    private static void Fail() => throw new InvalidOperationException("failed");
+
+    [Fact]
+    public void Shrinking_WithTwoThrowSitesOfOneType_ShouldStayWithTheFailureItFound()
+    {
+        // Arrange
+        var property = Property.ForAll(TwoSiteInput, static x =>
+        {
+            if (x < 50)
+            {
+                throw new InvalidOperationException("small");
+            }
+
+            if (x > 100)
+            {
+                throw new InvalidOperationException("large");
+            }
+        });
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal(101, result.Minimal.Value);
+    }
+
+    [Fact]
+    public void Shrinking_WithTwoCallSitesOfOneThrowingHelper_ShouldTellThemApartByTheBodyLine()
+    {
+        // Arrange
+        var property = Property.ForAll(TwoSiteInput, static x =>
+        {
+            if (x < 50)
+            {
+                Fail();
+            }
+
+            if (x > 100)
+            {
+                Fail();
+            }
+        });
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal(101, result.Minimal.Value);
+    }
+
+    [Fact]
+    public async Task Shrinking_WithTwoSitesInAnAsyncBody_ShouldStayWithTheFailureItFound()
+    {
+        // Arrange
+        var property = Property.ForAll(TwoSiteInput, static async x =>
+        {
+            await Task.Yield();
+
+            if (x < 50)
+            {
+                Fail();
+            }
+
+            if (x > 100)
+            {
+                Fail();
+            }
+        });
+
+        // Act
+        var result = await property.CheckAsync(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal(101, result.Minimal.Value);
+    }
+
+    private sealed record SmallKey(int Key) : StoreCommand
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model) => model;
+
+        public void Run(Dictionary<int, int> model, Store store) => Assert.True(Key >= 50, "small");
+    }
+
+    private sealed record LargeKey(int Key) : StoreCommand
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model) => model;
+
+        public void Run(Dictionary<int, int> model, Store store) => Assert.True(Key <= 100, "large");
+    }
+
+    [Fact]
+    public void Shrinking_WithTwoCommandsThatFailTheSameWay_ShouldNotSwapOneForTheOther()
+    {
+        // Arrange
+        var generator = Generate.CommandSequence(() => new Dictionary<int, int>(), _ => Generate.Frequency(
+            (1, Generate.Between(0, 1000).Select(StoreCommand (key) => new SmallKey(key))),
+            (1, Generate.Between(0, 1000).Select(StoreCommand (key) => new LargeKey(key)))));
+        var property = Property.ForAll(generator, sequence => sequence.Run(new Store()));
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([new LargeKey(101)], result.Minimal.Value.Commands);
+    }
 }

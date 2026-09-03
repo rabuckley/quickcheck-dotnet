@@ -38,6 +38,14 @@ public sealed class PropertyTestCaseTests
 
         public void Divides(int a, int b) => _ = a / b;
 
+        // Two assertion sites of one exception type: shrinking must not cross from the failure
+        // it found (x > 100) to the other one (x < 50).
+        public void Fails_at_two_sites(int x)
+        {
+            Assert.True(x >= 50, "small");
+            Assert.True(x <= 100, "large");
+        }
+
         public void Draws_a_brittle_value(Brittle value) => _ = value;
 
         public static void Static_and_cancels(int x)
@@ -207,6 +215,20 @@ public sealed class PropertyTestCaseTests
         // Assert
         var failed = Assert.Single(messages.OfType<ITestFailed>());
         Assert.Contains("Gave up after 0 tests", failed.Messages[0]);
+    }
+
+    [Fact]
+    public async Task PropertyTestCase_WithTwoFailureSitesOfOneType_ShouldShrinkToTheOneItFound()
+    {
+        // Arrange
+        var attribute = new PropertyAttribute { Seed = 2024, RunCount = 200 };
+
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Fails_at_two_sites), attribute);
+
+        // Assert
+        var failed = Assert.Single(messages.OfType<ITestFailed>());
+        Assert.Contains("Minimal counterexample: x = 101", failed.Messages[0]);
     }
 
     [Fact]
