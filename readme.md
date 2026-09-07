@@ -54,7 +54,7 @@ public void Reversing_twice_is_the_identity()
 }
 ```
 
-Either way, a failure reports the smallest input that still fails and how to replay that input again:
+Either way, a failure reports the smallest input the shrinker can find that still fails and how to replay it:
 
 ```
 Falsified after 12 tests and 34 shrinks (seed 3468194371).

@@ -17,7 +17,7 @@ public static class Property
     /// A discarded example is replaced by a newly generated one, so discarding still costs generation
     /// time, and a property that discards most of its examples ends as
     /// <see cref="PropertyOutcome.Exhausted"/>, giving up as soon as the discard rate makes that
-    /// outcome statistically certain; prefer a generator that produces only valid inputs. The
+    /// outcome all but certain; prefer a generator that produces only valid inputs. The
     /// property body must let the <see cref="DiscardException"/> propagate, because a
     /// <see langword="catch"/> clause that swallows it turns a discarded example into a passing one.
     /// </remarks>
