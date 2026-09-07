@@ -175,12 +175,20 @@ public sealed class ChoiceSource
     /// </exception>
     /// <exception cref="DiscardException">The example exceeded the maximum number of choices.</exception>
     /// <remarks>
-    /// <see langword="false"/> is the simpler value, so shrinking moves towards it.
+    /// <see langword="false"/> is the simpler value, so shrinking moves towards it. A probability of
+    /// 0 or 1 is a fixed outcome rather than a choice: it consumes nothing from the choice sequence,
+    /// so replay and shrinking cannot flip it.
     /// </remarks>
     public bool NextBoolean(double probabilityOfTrue = 0.5)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(probabilityOfTrue, 0);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(probabilityOfTrue, 1);
+
+        if (probabilityOfTrue is 0 or 1)
+        {
+            return probabilityOfTrue == 1;
+        }
+
         ThrowIfFull();
 
         var index = _recorded.Count;

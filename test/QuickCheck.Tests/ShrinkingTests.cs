@@ -722,4 +722,52 @@ public sealed class ShrinkingTests
         Assert.True(result.IsFalsified);
         Assert.Equal([new LargeKey(101)], result.Minimal.Value.Commands);
     }
+
+    [Fact]
+    public void Shrinking_WithOrNullAtProbabilityZero_ShouldNeverReachNull()
+    {
+        // Arrange
+        var property = Property.ForAll(Generate.Constant("x").OrNull(nullProbability: 0), static _ => false);
+
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 0 });
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal("x", result.Minimal.Value);
+    }
+
+    [Fact]
+    public void Shrinking_WithNullableAtProbabilityZero_ShouldNeverReachNull()
+    {
+        // Arrange
+        var property = Property.ForAll(Generate.Between(1, 100).Nullable(nullProbability: 0), static _ => false);
+
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 0 });
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal(1, result.Minimal.Value);
+    }
+
+    [Fact]
+    public void Shrinking_WithANullProbabilityThatDependsOnAShrunkValue_ShouldStayInTheShrunkDomain()
+    {
+        // Arrange
+        // Shrinking the count to 0 must also pull the value out of null, whatever the boolean
+        // originally drew.
+        var generator =
+            from count in Generate.Between(0, 5)
+            from value in Generate.Constant(count).Nullable(nullProbability: count == 0 ? 0 : 0.5)
+            select (count, value);
+        var property = Property.ForAll(generator, static _ => false);
+
+        // Act
+        var result = property.Check(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal((0, (int?)0), result.Minimal.Value);
+    }
 }

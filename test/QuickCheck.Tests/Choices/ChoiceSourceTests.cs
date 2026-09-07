@@ -38,6 +38,25 @@ public sealed class ChoiceSourceTests
     }
 
     [Fact]
+    public void NextBoolean_WithAFixedProbability_ShouldIgnoreThePrefixAndConsumeNoChoice()
+    {
+        // Arrange
+        // A prefix that would flip each fixed outcome if it were replayed.
+        var source = ChoiceSource.FromPrefix([new Choice(1, 1), new Choice(0, 1)]);
+
+        // Act
+        var never = source.NextBoolean(0);
+        var always = source.NextBoolean(1);
+        var replayed = source.NextBoolean(0.5);
+
+        // Assert
+        Assert.False(never);
+        Assert.True(always);
+        Assert.True(replayed);
+        Assert.Equal([new Choice(1, 1)], source.Recorded);
+    }
+
+    [Fact]
     public void Draw_WithAWrapperAroundOneInnerDraw_ShouldRecordOneSpanForBoth()
     {
         // Arrange
