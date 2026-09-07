@@ -4,6 +4,62 @@ namespace QuickCheck.Tests.Running;
 
 public sealed class CoverageLookTests
 {
+    [Fact]
+    public void Verdict_WithOneRareHit_ShouldRemainUndecided()
+    {
+        var look = new CoverageLook(Confidence.Default, passed: 100, look: 0);
+
+        Assert.Equal(CoverageVerdict.Undecided, look.Verdict(minimumPercent: 0.02, count: 1));
+    }
+
+    [Theory]
+    [InlineData(2L, 0)]
+    [InlineData(1_000_000_000L, 0)]
+    [InlineData(1_000_000_000L, 9)]
+    [InlineData(long.MaxValue, 50)]
+    public void Verdict_AcrossAllBinomialOutcomes_ShouldRespectEachTailBudget(long certainty, int lookIndex)
+    {
+        // Sum exact binomial masses independently of the decision's tail bound. At the two
+        // null boundaries these are the largest error probabilities outside the tolerance band.
+        var confidence = new Confidence { Certainty = certainty };
+        var tailBudget = Math.ScaleB(1.0 / certainty, -(lookIndex + 2));
+        foreach (var total in new[] { 100, 400 })
+        {
+            var look = new CoverageLook(confidence, total, lookIndex);
+            foreach (var minimum in new[] { 0.0002, 0.01, 0.1, 0.5, 0.9, 0.9999 })
+            {
+                double falseAcceptance = 0;
+                double falseRejection = 0;
+                double logBinomialCoefficient = 0;
+                for (var count = 0; count <= total; count++)
+                {
+                    var verdict = look.Verdict(minimum * 100, count);
+                    if (verdict == CoverageVerdict.Met)
+                    {
+                        var probability = confidence.Tolerance * minimum;
+                        falseAcceptance += Math.Exp(logBinomialCoefficient + count * Math.Log(probability)
+                            + (total - count) * Math.Log(1 - probability));
+                    }
+                    else if (verdict == CoverageVerdict.Unmet)
+                    {
+                        falseRejection += Math.Exp(logBinomialCoefficient + count * Math.Log(minimum)
+                            + (total - count) * Math.Log(1 - minimum));
+                    }
+
+                    if (count < total)
+                    {
+                        logBinomialCoefficient += Math.Log((double)(total - count) / (count + 1));
+                    }
+                }
+
+                Assert.True(falseAcceptance <= tailBudget,
+                    $"Acceptance error {falseAcceptance} exceeds {tailBudget} at n={total}, p={minimum}");
+                Assert.True(falseRejection <= tailBudget,
+                    $"Rejection error {falseRejection} exceeds {tailBudget} at n={total}, p={minimum}");
+            }
+        }
+    }
+
     [Theory]
     [InlineData(100, 100, true)]
     [InlineData(150, 100, false)]

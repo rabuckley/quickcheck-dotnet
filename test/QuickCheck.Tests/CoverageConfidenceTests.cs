@@ -5,6 +5,22 @@ public sealed class CoverageConfidenceTests
     private static readonly CheckOptions Confident = new() { Seed = 1, CoverageConfidence = Confidence.Default };
 
     [Fact]
+    public void Check_WithRareHitsBelowTolerance_ShouldRejectDespiteAnEarlyHit()
+    {
+        // Arrange
+        var n = 0;
+        var property = Property.ForAll(Generate.Integer<int>(), _ => Property.Cover(n++ == 5, 0.02, "rare"));
+
+        // Act
+        var result = property.Check(Confident);
+
+        // Assert
+        Assert.Equal(PropertyOutcome.InsufficientCoverage, result.Outcome);
+        Assert.True(result.TestsRun > 100);
+        Assert.False(Assert.Single(result.Statistics.Coverage).IsMet);
+    }
+
+    [Fact]
     public void Check_WithConfidenceAndNeverHitLabel_ShouldFailAtTheFirstLookBeforeRunCount()
     {
         // Arrange
@@ -77,9 +93,9 @@ public sealed class CoverageConfidenceTests
 
         // Assert
         Assert.Equal(PropertyOutcome.Passed, result.Outcome);
-        Assert.Equal(6400, result.TestsRun);
+        Assert.Equal(12800, result.TestsRun);
 
-        Assert.Equal(new CoverageRequirement("most", MinimumPercent: 50, Count: 3168, IsMet: true),
+        Assert.Equal(new CoverageRequirement("most", MinimumPercent: 50, Count: 6336, IsMet: true),
             Assert.Single(result.Statistics.Coverage));
 
         Assert.DoesNotContain("Only", result.ToString(), StringComparison.Ordinal);

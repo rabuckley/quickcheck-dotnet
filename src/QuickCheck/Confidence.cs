@@ -11,8 +11,9 @@ namespace QuickCheck;
 /// <para>
 /// The check keeps generating examples until each requirement's rate so far is far enough from
 /// its minimum that chance alone is unlikely to explain it, or one requirement's rate is known to
-/// fall short. A true rate at or above the minimum is accepted and one below
-/// <see cref="Tolerance"/> times the minimum is rejected, each wrongly at most once in
+/// fall short. The error bound applies to each requirement across all looks, assuming independent
+/// examples with a fixed hit probability. A true rate at or above the minimum is accepted and one
+/// below <see cref="Tolerance"/> times the minimum is rejected, each wrongly at most once in
 /// <see cref="Certainty"/> checks. A true rate between the two may be accepted or rejected, and is
 /// the slowest to decide, slowest of all in the middle of the band: with the defaults and a
 /// minimum of 50%, a true rate of 50% decides after about 6,400 examples and one of 47% after
