@@ -14,6 +14,11 @@ public sealed class Counterexample<T>
     }
 
     /// <summary>Gets the value that falsified the property.</summary>
+    /// <remarks>
+    /// A generated value is reported as it was generated, even if the property's body mutated the
+    /// object it was given. A pinned value is the object given to <see cref="Property{T}.Example"/>,
+    /// in whatever state the body left it.
+    /// </remarks>
     public T Value { get; }
 
     /// <summary>

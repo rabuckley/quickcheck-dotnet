@@ -3,8 +3,9 @@ using QuickCheck.Choices;
 namespace QuickCheck.Running;
 
 /// <summary>
-/// The result of generating one example and running the property on it, together with the choices
-/// consumed so the example can be replayed.
+/// The result of running the property on one example, together with the choices consumed so the
+/// example can be replayed. The value is not kept, because the body may have mutated it; a generated
+/// example is rebuilt from <see cref="Choices"/> when it is reported, and an explicit one has none.
 /// </summary>
 internal sealed class ExampleRun<T>
 {
@@ -17,8 +18,6 @@ internal sealed class ExampleRun<T>
     public required IReadOnlyList<Choice> Choices { get; init; }
 
     public required IReadOnlyList<ChoiceSpan> Spans { get; init; }
-
-    public required T Value { get; init; }
 
     public Exception? Exception { get; init; }
 

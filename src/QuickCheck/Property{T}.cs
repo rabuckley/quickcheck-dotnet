@@ -62,6 +62,11 @@ public sealed class Property<T>
     /// <see cref="CheckOptions.Replay"/> checks only the example its token names,
     /// <see cref="Check"/> throws rather than leave the pins unchecked.
     /// </para>
+    /// <para>
+    /// A generated counterexample is reported as it was generated even when the body mutates its
+    /// input. A pin has no choices to rebuild it from, so a failing pin is reported as the object
+    /// given here, in whatever state the body left it.
+    /// </para>
     /// </remarks>
     public Property<T> Example(T value) => new(_runner, [.. _examples, value]);
 

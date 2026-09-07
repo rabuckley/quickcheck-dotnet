@@ -20,6 +20,30 @@ public sealed class PropertyTests
     }
 
     [Fact]
+    public void Check_WithBodyThatMutatesItsInput_ShouldReportTheInputAsGenerated()
+    {
+        // Arrange
+        // The body empties every list it is given, so a retained reference would report [] for a
+        // failure that only a nonempty list can produce.
+        var property = Property.ForAll(
+            Generate.Between(1, 9).List(),
+            static items =>
+            {
+                var wasEmpty = items.Count == 0;
+                items.Clear();
+                return wasEmpty;
+            });
+
+        // Act
+        var result = property.Check(new CheckOptions { Seed = 3 });
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.NotEmpty(result.Original.Value);
+        Assert.Equal([1], result.Minimal.Value);
+    }
+
+    [Fact]
     public void Assert_WithFalsifiedProperty_ShouldThrowNamingTheMinimalCounterexampleAndReplay()
     {
         // Arrange

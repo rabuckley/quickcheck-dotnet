@@ -446,15 +446,14 @@ public sealed class ShrinkingTests
         // A replayed prefix pads out with zeros, and here zero picks the branch that draws 10,000
         // more choices. Charging the candidate's length would let the shrinker replay that branch
         // again and again on a budget of one choice.
-        var shrinking = false;
-        var drawnWhileShrinking = 0;
+        // Counted at each body call, so the draws that rebuild the reported counterexamples after
+        // shrinking ends are not charged to the shrinker.
+        var drawn = 0;
+        var drawnBeforeLastBody = 0;
+        var drawnBeforeFirstBody = -1;
         var element = Generate.Integer<int>().Select(x =>
         {
-            if (shrinking)
-            {
-                drawnWhileShrinking++;
-            }
-
+            drawn++;
             return x;
         });
         var generator =
@@ -463,7 +462,12 @@ public sealed class ShrinkingTests
             select items;
         var property = Property.ForAll(generator, items =>
         {
-            shrinking = true;
+            if (drawnBeforeFirstBody < 0)
+            {
+                drawnBeforeFirstBody = drawn;
+            }
+
+            drawnBeforeLastBody = drawn;
             return false;
         });
 
@@ -473,7 +477,7 @@ public sealed class ShrinkingTests
         // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal(ShrinkLimit.Work, result.ShrinkLimit);
-        Assert.InRange(drawnWhileShrinking, 0, 10_000);
+        Assert.InRange(drawnBeforeLastBody - drawnBeforeFirstBody, 0, 10_000);
     }
 
     /// <summary>The store commands over keys wide enough that two of them rarely agree by chance.</summary>

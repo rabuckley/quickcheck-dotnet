@@ -98,7 +98,7 @@ internal sealed class PropertyRunner<T>
                     return PropertyResult.FalsifiedByExample(
                         seed,
                         explicitExamples,
-                        new Counterexample<T>(pinned.Value, pinned.Exception, isExplicit: true));
+                        new Counterexample<T>(value, pinned.Exception, isExplicit: true));
             }
         }
 
@@ -267,12 +267,17 @@ internal sealed class PropertyRunner<T>
             testsRun,
             discards,
             explicitExamples,
-            new Counterexample<T>(failure.Value, failure.Exception, isExplicit: false),
-            new Counterexample<T>(outcome.Minimal.Value, outcome.Minimal.Exception, isExplicit: false),
+            Regenerated(failure),
+            Regenerated(outcome.Minimal),
             replay,
             outcome.Attempts,
             outcome.Shrinks,
             outcome.Limit,
             statistics);
     }
+
+    // Replaying the choices gives the value as the body first saw it; the body may have mutated
+    // the object since.
+    private Counterexample<T> Regenerated(ExampleRun<T> run) =>
+        new(ChoiceSource.FromPrefix(run.Choices).Draw(_generator), run.Exception, isExplicit: false);
 }

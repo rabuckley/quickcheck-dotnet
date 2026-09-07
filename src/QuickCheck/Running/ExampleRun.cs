@@ -32,7 +32,7 @@ internal static class ExampleRun
         }
         catch (DiscardException)
         {
-            return WithoutValue(ExampleStatus.Discarded);
+            return WithoutBody(ExampleStatus.Discarded);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -40,7 +40,7 @@ internal static class ExampleRun
         }
         catch (Exception exception)
         {
-            return WithoutValue(ExampleStatus.GenerationFailed, exception);
+            return WithoutBody(ExampleStatus.GenerationFailed, exception);
         }
 
         var outcome = await RunBodyAsync(value, body, cancellationToken).ConfigureAwait(false);
@@ -50,19 +50,17 @@ internal static class ExampleRun
             Status = outcome.Status,
             Choices = source.Recorded,
             Spans = source.Spans,
-            Value = value,
             Statistics = outcome.Statistics,
             Exception = outcome.Exception
         };
 
-        // A run that ended inside the generator has no value to carry; its choices are the ones
-        // drawn before the generator stopped, which are what replay it.
-        ExampleRun<T> WithoutValue(ExampleStatus status, Exception? exception = null) => new()
+        // A run that ended inside the generator keeps the choices drawn before it stopped, which
+        // are what replay it.
+        ExampleRun<T> WithoutBody(ExampleStatus status, Exception? exception = null) => new()
         {
             Status = status,
             Choices = source.Recorded,
             Spans = source.Spans,
-            Value = default!,
             Exception = exception
         };
     }
@@ -88,7 +86,6 @@ internal static class ExampleRun
             Status = outcome.Status,
             Choices = [],
             Spans = [],
-            Value = value,
             Statistics = outcome.Statistics,
             Exception = outcome.Exception
         };
