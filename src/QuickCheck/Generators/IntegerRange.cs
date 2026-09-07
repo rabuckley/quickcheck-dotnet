@@ -46,6 +46,10 @@ internal readonly struct IntegerRange<T> where T : IBinaryInteger<T>
         _maxBoundChoice = ToChoice(_above, above: true);
     }
 
+    /// <summary>
+    /// Draws a value from the range. One call in sixteen while generating snaps to <c>min</c>,
+    /// <c>max</c> or the shrink target, so a caller nesting ranges gets that rate at every level.
+    /// </summary>
     public T Draw(ChoiceSource source) =>
         FromChoice(source.NextChoice(_maxChoice, _minChoice, _maxBoundChoice));
 

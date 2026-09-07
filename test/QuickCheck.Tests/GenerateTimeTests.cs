@@ -196,8 +196,10 @@ public sealed class GenerateTimeTests
 
         // Assert
         Assert.All(acrossYear, d => Assert.InRange(d, yearMin, yearMax));
-        Assert.InRange(acrossYear.Count(static d => d.Year == 2025), 150, 350);
-        Assert.InRange(acrossMonth.Count(static d => d.Month == 6), 120, 300);
+        // A bound's share of the days plus a snap to it in both the year draw and the whole date,
+        // so about one draw in 16 rather than the one in 32 a single snap would give.
+        Assert.InRange(acrossYear.Count(static d => d.Year == 2025), 200, 320);
+        Assert.InRange(acrossMonth.Count(static d => d.Month == 6), 155, 265);
     }
 
     [Fact]
