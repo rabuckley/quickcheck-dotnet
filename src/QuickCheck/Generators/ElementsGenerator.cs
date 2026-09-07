@@ -11,5 +11,5 @@ internal sealed class ElementsGenerator<T> : Generator<T>
         _items = items;
     }
 
-    protected internal override T Generate(ChoiceSource source) => _items[source.NextChoice((ulong)_items.Length - 1)];
+    protected internal override T Generate(ChoiceSource source) => _items[source.NextUniformChoice((ulong)_items.Length - 1)];
 }

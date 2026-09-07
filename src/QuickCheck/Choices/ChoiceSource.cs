@@ -33,7 +33,8 @@ public sealed class ChoiceSource
 
     // Ranges wider than this are sampled with a size bias (7 in 8 draws pick a
     // narrower bit-width first) so small values are common; narrower ranges
-    // are uniform, which keeps Elements/Frequency/char draws unweighted.
+    // are uniform. Categorical draws use NextUniformChoice, which never
+    // applies the bias, whatever the width.
     private const int UniformBitLength = 24;
     private const double SizeBiasProbability = 7.0 / 8;
 
@@ -115,23 +116,25 @@ public sealed class ChoiceSource
     {
         ThrowIfFull();
 
-        var index = _recorded.Count;
-        ulong value;
+        var value = _random is not null ? Sample(_random, maxInclusive, boundaries) : 0;
 
-        if (_prefix is not null && index < _prefix.Count)
-        {
-            value = Math.Min(_prefix[index].Value, maxInclusive);
-        }
-        else if (_random is not null)
-        {
-            value = Sample(_random, maxInclusive, boundaries);
-        }
-        else
-        {
-            value = 0;
-        }
+        return ReplayOrRecord(value, maxInclusive);
+    }
 
-        return Record(value, maxInclusive);
+    /// <summary>
+    /// Draws an integer from 0 to <paramref name="maxInclusive"/> uniformly, however wide the range.
+    /// For a selection among alternatives (an index or a position in a cumulative weight range),
+    /// where the size bias of <see cref="NextChoice"/> would skew the selection towards the first
+    /// alternatives. Zero is still the simplest value, so shrinking moves towards it.
+    /// </summary>
+    /// <exception cref="DiscardException">The example exceeded the maximum number of choices.</exception>
+    internal ulong NextUniformChoice(ulong maxInclusive)
+    {
+        ThrowIfFull();
+
+        var value = _random is not null ? _random.NextUInt64Inclusive(maxInclusive) : 0;
+
+        return ReplayOrRecord(value, maxInclusive);
     }
 
     /// <summary>
@@ -157,18 +160,7 @@ public sealed class ChoiceSource
     {
         ThrowIfFull();
 
-        var index = _recorded.Count;
-
-        if (_prefix is not null && index < _prefix.Count)
-        {
-            value = Math.Min(_prefix[index].Value, maxInclusive);
-        }
-        else if (_random is null)
-        {
-            value = 0;
-        }
-
-        return Record(value, maxInclusive);
+        return ReplayOrRecord(_random is not null ? value : 0, maxInclusive);
     }
 
     /// <summary>
@@ -216,6 +208,18 @@ public sealed class ChoiceSource
         {
             throw new DiscardException("Example exceeded the maximum number of choices.");
         }
+    }
+
+    // Replays the prefix while one remains, otherwise records the value the caller generated (or
+    // the padding 0 it passed when there is no random source).
+    private ulong ReplayOrRecord(ulong generated, ulong maxInclusive)
+    {
+        var index = _recorded.Count;
+        var value = _prefix is not null && index < _prefix.Count
+            ? Math.Min(_prefix[index].Value, maxInclusive)
+            : generated;
+
+        return Record(value, maxInclusive);
     }
 
     private ulong Record(ulong value, ulong maxInclusive)

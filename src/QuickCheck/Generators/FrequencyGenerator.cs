@@ -19,9 +19,9 @@ internal sealed class FrequencyGenerator<T> : Generator<T>
 
     protected internal override T Generate(ChoiceSource source)
     {
-        // One choice over the cumulative weight range: choice 0 always maps to
-        // the first generator, so shrinking moves towards it.
-        var roll = source.NextChoice(_totalWeight - 1);
+        // One uniform choice over the cumulative weight range: choice 0 always
+        // maps to the first generator, so shrinking moves towards it.
+        var roll = source.NextUniformChoice(_totalWeight - 1);
         ulong cumulative = 0;
 
         foreach (var (weight, generator) in _weighted)

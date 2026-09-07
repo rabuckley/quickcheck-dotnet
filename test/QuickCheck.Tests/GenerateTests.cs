@@ -275,6 +275,22 @@ public sealed class GenerateTests
         Assert.All<int>([1, 2, 3], value => Assert.InRange(uniform.Count(x => x == value), 800, 1200));
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(1 << 24)]
+    [InlineData(int.MaxValue / 2)]
+    public void Frequency_WithEqualWeightsOfAnySize_ShouldDrawEachAlternativeEqually(int weight)
+    {
+        // Arrange
+        var generator = Generate.Frequency((weight, Generate.Constant(1)), (weight, Generate.Constant(2)));
+
+        // Act
+        var samples = generator.Sample(count: 4000, seed: 21);
+
+        // Assert
+        Assert.InRange(samples.Count(static x => x == 1), 1800, 2200);
+    }
+
     [Fact]
     public void NullableCombinators_WithManySamples_ShouldProduceBothNullAndValues()
     {
