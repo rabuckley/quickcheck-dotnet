@@ -22,8 +22,7 @@ internal sealed class PropertyMethod
     private readonly MethodInfo _method;
     private readonly PropertyArguments[] _examples;
 
-    private PropertyMethod(
-        MethodInfo method, Generator<PropertyArguments> arguments, PropertyArguments[] examples)
+    private PropertyMethod(MethodInfo method, Generator<PropertyArguments> arguments, PropertyArguments[] examples)
     {
         _method = method;
         _examples = examples;
@@ -81,7 +80,10 @@ internal sealed class PropertyMethod
     }
 
     private static Generator<PropertyArguments> ArgumentsGenerator(
-        MethodInfo method, ParameterInfo[] parameters, string[] names, Type? generators)
+        MethodInfo method,
+        ParameterInfo[] parameters,
+        string[] names,
+        Type? generators)
     {
         if (method.IsGenericMethodDefinition)
         {
@@ -93,9 +95,12 @@ internal sealed class PropertyMethod
             throw new PropertyDefinitionException("'async void' is not supported; return Task or ValueTask.");
         }
 
-        if (method.ReturnType != typeof(void) && method.ReturnType != typeof(bool)
-            && method.ReturnType != typeof(Task) && method.ReturnType != typeof(Task<bool>)
-            && method.ReturnType != typeof(ValueTask) && method.ReturnType != typeof(ValueTask<bool>))
+        if (method.ReturnType != typeof(void)
+            && method.ReturnType != typeof(bool)
+            && method.ReturnType != typeof(Task)
+            && method.ReturnType != typeof(Task<bool>)
+            && method.ReturnType != typeof(ValueTask)
+            && method.ReturnType != typeof(ValueTask<bool>))
         {
             throw new PropertyDefinitionException(
                 $"the return type {GeneratorResolver.TypeName(method.ReturnType)} is not supported; "
@@ -134,8 +139,7 @@ internal sealed class PropertyMethod
     /// attributes, and only the first failure is reported, so without a key of
     /// the adapter's own the reported pin would vary by machine and runtime.
     /// </remarks>
-    private static PropertyArguments[] ExplicitExamples(
-        MethodInfo method, ParameterInfo[] parameters, string[] names)
+    private static PropertyArguments[] ExplicitExamples(MethodInfo method, ParameterInfo[] parameters, string[] names)
     {
         var attributes = method.GetCustomAttributes<ExampleAttribute>().ToArray();
         var examples = new PropertyArguments[attributes.Length];
@@ -161,8 +165,10 @@ internal sealed class PropertyMethod
             examples[i] = new PropertyArguments(names, arguments);
         }
 
-        Array.Sort(examples, static (left, right) =>
-            StringComparer.Ordinal.Compare(left.ToString(), right.ToString()));
+        Array.Sort(
+            examples,
+            static (left, right) =>
+                StringComparer.Ordinal.Compare(left.ToString(), right.ToString()));
 
         return examples;
     }
@@ -195,7 +201,9 @@ internal sealed class PropertyMethod
         try
         {
             return target.IsEnum
-                ? Enum.ToObject(target, Convert.ChangeType(value, target.GetEnumUnderlyingType(), CultureInfo.InvariantCulture)!)
+                ? Enum.ToObject(
+                    target,
+                    Convert.ChangeType(value, target.GetEnumUnderlyingType(), CultureInfo.InvariantCulture))
                 : Convert.ChangeType(value, target, CultureInfo.InvariantCulture);
         }
         catch (Exception exception) when (exception is InvalidCastException or OverflowException or FormatException)
@@ -224,27 +232,48 @@ internal sealed class PropertyMethod
             throw;
         }
 
-        switch (result)
-        {
-            case null:
-                return true;
-            case bool holds:
-                return holds;
+        // Dispatch on the declared type rather than the value: Task<bool> derives from Task, so
+        // only the declaration says whether a bool the body hands back is meant as the verdict.
+        var returnType = _method.ReturnType;
 
-            // Task<bool> derives from Task, so only the declared return type can say whether the
-            // value a method happens to hand back is meant as the property's verdict.
-            case Task<bool> task when _method.ReturnType == typeof(Task<bool>):
-                return await task.ConfigureAwait(false);
-            case Task task:
-                await task.ConfigureAwait(false);
-                return true;
-            case ValueTask<bool> valueTask:
-                return await valueTask.ConfigureAwait(false);
-            case ValueTask valueTask:
-                await valueTask.ConfigureAwait(false);
-                return true;
-            default:
-                throw new System.Diagnostics.UnreachableException("Return type was validated at construction.");
+        if (returnType == typeof(void))
+        {
+            return true;
         }
+
+        if (returnType == typeof(bool))
+        {
+            return (bool)result!;
+        }
+
+        if (result is null)
+        {
+            throw new InvalidOperationException(
+                $"the property returned a null {GeneratorResolver.TypeName(returnType)}, so its body was never awaited.");
+        }
+
+        if (returnType == typeof(Task<bool>))
+        {
+            return await ((Task<bool>)result).ConfigureAwait(false);
+        }
+
+        if (returnType == typeof(Task))
+        {
+            await ((Task)result).ConfigureAwait(false);
+            return true;
+        }
+
+        if (returnType == typeof(ValueTask<bool>))
+        {
+            return await ((ValueTask<bool>)result).ConfigureAwait(false);
+        }
+
+        if (returnType == typeof(ValueTask))
+        {
+            await ((ValueTask)result).ConfigureAwait(false);
+            return true;
+        }
+
+        throw new UnreachableException("Return type was validated at construction.");
     }
 }

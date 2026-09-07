@@ -34,6 +34,8 @@ public sealed class PropertyTestCaseTests
         // Declared Task, not Task<bool>: the bool it happens to produce is not a verdict.
         public Task Awaits_a_bool_returning_call(int x) => Task.FromResult(false);
 
+        public Task Hands_back_a_null_task(int x) => null!;
+
         public void Assumes_the_impossible(int x) => Property.Assume(false);
 
         public void Divides(int a, int b) => _ = a / b;
@@ -119,6 +121,22 @@ public sealed class PropertyTestCaseTests
         // Assert
         Assert.Empty(messages.OfType<ITestFailed>());
         Assert.Single(messages.OfType<ITestPassed>());
+    }
+
+    [Fact]
+    public async Task PropertyTestCase_WithTaskReturningBodyThatHandsBackNull_ShouldFailRatherThanPass()
+    {
+        // Arrange
+        var attribute = new PropertyAttribute { Seed = 9 };
+
+        // Act
+        var messages = await TestHost.Run(typeof(Samples), nameof(Samples.Hands_back_a_null_task), attribute);
+
+        // Assert
+        var failed = Assert.Single(messages.OfType<ITestFailed>());
+        Assert.Contains(failed.ExceptionTypes, static type => type == typeof(InvalidOperationException).FullName);
+        Assert.Contains("returned a null Task", failed.Messages[0]);
+        Assert.Empty(messages.OfType<ITestPassed>());
     }
 
     [Fact]
