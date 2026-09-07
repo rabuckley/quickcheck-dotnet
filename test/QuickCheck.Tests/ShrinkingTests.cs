@@ -439,6 +439,43 @@ public sealed class ShrinkingTests
         Assert.Contains("MaxShrinkWork", result.ToString());
     }
 
+    [Fact]
+    public void Shrinking_WithASmallWorkBudget_ShouldChargeWhatAReplayConsumesNotWhatTheCandidateHolds()
+    {
+        // Arrange
+        // A replayed prefix pads out with zeros, and here zero picks the branch that draws 10,000
+        // more choices. Charging the candidate's length would let the shrinker replay that branch
+        // again and again on a budget of one choice.
+        var shrinking = false;
+        var drawnWhileShrinking = 0;
+        var element = Generate.Integer<int>().Select(x =>
+        {
+            if (shrinking)
+            {
+                drawnWhileShrinking++;
+            }
+
+            return x;
+        });
+        var generator =
+            from tiny in Generate.Boolean()
+            from items in tiny ? element.List(1, 1) : element.List(10_000, 10_000)
+            select items;
+        var property = Property.ForAll(generator, items =>
+        {
+            shrinking = true;
+            return false;
+        });
+
+        // Act
+        var result = property.Check(Seeded with { MaxShrinkWork = 1 });
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal(ShrinkLimit.Work, result.ShrinkLimit);
+        Assert.InRange(drawnWhileShrinking, 0, 10_000);
+    }
+
     /// <summary>The store commands over keys wide enough that two of them rarely agree by chance.</summary>
     private static Generator<StoreCommand> WideKeyNext(Dictionary<int, int> model) => Generate.Frequency(
         (3, Generate.Build(Generate.Between(0, 1000), Generate.Between(0, 100), StoreCommand (key, value) => new Put(key, value))),

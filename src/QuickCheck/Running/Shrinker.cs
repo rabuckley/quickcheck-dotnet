@@ -534,7 +534,7 @@ internal sealed class Shrinker<T>
     {
         _cancellationToken.ThrowIfCancellationRequested();
 
-        if (!_budget.TryCharge(candidate.Count))
+        if (!_budget.TryBeginAttempt())
         {
             return false;
         }
@@ -542,6 +542,8 @@ internal sealed class Shrinker<T>
         var run = await ExampleRun
             .ExecuteAsync(ChoiceSource.FromPrefix(candidate), _generator, _body, _cancellationToken)
             .ConfigureAwait(false);
+
+        _budget.Charge(run.Choices.Count);
 
         // An edited choice sequence can describe a value the generator refuses to build, such as
         // members that a constructor guard relates; that GenerationFailed run is not a failure, so

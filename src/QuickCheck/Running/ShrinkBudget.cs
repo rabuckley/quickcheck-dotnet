@@ -33,20 +33,18 @@ internal sealed class ShrinkBudget
 
     /// <summary>
     /// Whether a limit has been reached. Loops test this to exit early; only
-    /// <see cref="TryCharge"/> enforces it, so dropping such a check costs iterations, never
+    /// <see cref="TryBeginAttempt"/> enforces it, so dropping such a check costs iterations, never
     /// correctness.
     /// </summary>
     public bool Exhausted => LimitReached is not ShrinkLimit.None;
 
     /// <summary>
-    /// Pays for replaying a candidate of <paramref name="choices"/> choices, or refuses because a
-    /// limit has been reached. The limits are tested against the accumulated total and never against
-    /// what a candidate would add, so an example larger than the whole budget is still replayed once
-    /// rather than not shrunk at all.
+    /// Admits one more replay, or refuses because a limit has been reached. The limits are tested
+    /// against the accumulated total and never against what a candidate would add, so an example
+    /// larger than the whole budget is still replayed once rather than not shrunk at all.
     /// </summary>
-    /// <param name="choices">The number of choices the replay will consume.</param>
     /// <returns>Whether the replay may go ahead.</returns>
-    public bool TryCharge(int choices)
+    public bool TryBeginAttempt()
     {
         if (Exhausted)
         {
@@ -54,7 +52,14 @@ internal sealed class ShrinkBudget
         }
 
         Attempts++;
-        _work += choices;
         return true;
     }
+
+    /// <summary>
+    /// Pays for a replay that has run. The cost is what the replay consumed, not the length of the
+    /// candidate it started from: a source pads an exhausted prefix with zeros, and those zeros can
+    /// select a branch that draws far more choices than the prefix held.
+    /// </summary>
+    /// <param name="choices">The number of choices the replay consumed.</param>
+    public void Charge(int choices) => _work += choices;
 }
