@@ -77,11 +77,11 @@ public void Reverse_reverses()
 }
 ```
 
-That proves the code works for `[1, 2, 3]` but not an empty list, a single element, lists with duplicates, `int.MinValue`, or a list of ten thousand items, unless you thought of and wrote those cases too. The cases cases you _didn't_ think to test are often where the bugs are.
+That proves the code works for `[1, 2, 3]` but not an empty list, a single element, lists with duplicates, `int.MinValue`, or a list of ten thousand items, unless you thought of and wrote those cases too. The cases you _didn't_ think to test are often where the bugs are.
 
 Instead of defining a fixed input, property-based tests describe the _kind_ of input the code should handle, and instead of stating one expected output, you state something that must be true of the output for every input: a _property_. This library then generates hundreds of inputs, checks the property holds against each and reports the first one that breaks it.
 
-Because the inputs are randomised, when a property fails the input that broke it is usually large and mised with irrelevant detail. We therefore shrink failures by searching for the "smallest" input that still fails.
+Because the inputs are randomised, when a property fails the input that broke it is usually large and mixed with irrelevant detail. We therefore shrink failures by searching for the "smallest" input that still fails.
 
 ### Finding properties
 
