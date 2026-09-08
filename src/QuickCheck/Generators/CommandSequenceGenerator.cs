@@ -7,7 +7,8 @@ namespace QuickCheck.Generators;
 /// per span, so they shrink the same way: by deleting steps and truncating. Later steps are
 /// regenerated against the shrunk model, which re-evaluates their preconditions.
 /// </summary>
-internal sealed class CommandSequenceGenerator<TModel, TSystem> : Generator<CommandSequence<TModel, TSystem>>
+internal sealed class CommandSequenceGenerator<TModel, TCommand, TSequence> : Generator<TSequence>
+    where TCommand : class, IModelCommand<TModel>
 {
     // Hypothesis's stateful_step_count continuation: a sequence nearly always reaches maxLength,
     // and the shrinker, not the length draw, finds the shortest failing prefix. The 1-in-65,536
@@ -15,13 +16,15 @@ internal sealed class CommandSequenceGenerator<TModel, TSystem> : Generator<Comm
     private const double ContinueProbability = 1 - 1.0 / 65_536;
 
     private readonly Func<TModel> _initialModel;
-    private readonly Func<TModel, Generator<ICommand<TModel, TSystem>>?> _command;
+    private readonly Func<TModel, Generator<TCommand>?> _command;
     private readonly int _maxLength;
+    private readonly Func<Func<TModel>, IReadOnlyList<TCommand>, TSequence> _create;
 
     public CommandSequenceGenerator(
         Func<TModel> initialModel,
-        Func<TModel, Generator<ICommand<TModel, TSystem>>?> command,
-        int maxLength)
+        Func<TModel, Generator<TCommand>?> command,
+        int maxLength,
+        Func<Func<TModel>, IReadOnlyList<TCommand>, TSequence> create)
     {
         ArgumentNullException.ThrowIfNull(initialModel);
         ArgumentNullException.ThrowIfNull(command);
@@ -30,12 +33,13 @@ internal sealed class CommandSequenceGenerator<TModel, TSystem> : Generator<Comm
         _initialModel = initialModel;
         _command = command;
         _maxLength = maxLength;
+        _create = create;
     }
 
-    protected internal override CommandSequence<TModel, TSystem> Generate(ChoiceSource source)
+    protected internal override TSequence Generate(ChoiceSource source)
     {
         var model = _initialModel();
-        var commands = new List<ICommand<TModel, TSystem>>();
+        var commands = new List<TCommand>();
 
         while (commands.Count < _maxLength)
         {
@@ -53,10 +57,10 @@ internal sealed class CommandSequenceGenerator<TModel, TSystem> : Generator<Comm
             model = command.Update(model);
         }
 
-        return new CommandSequence<TModel, TSystem>(_initialModel, commands);
+        return _create(_initialModel, commands);
     }
 
-    private ICommand<TModel, TSystem>? DrawStep(ChoiceSource source, TModel model, int step)
+    private TCommand? DrawStep(ChoiceSource source, TModel model, int step)
     {
         if (!source.NextBoolean(ContinueProbability))
         {

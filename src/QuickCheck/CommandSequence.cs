@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace QuickCheck;
 
@@ -39,7 +38,7 @@ public sealed class CommandSequence<TModel, TSystem>
     /// <remarks>
     /// The model starts as a new initial model from the sequence's factory. For each command,
     /// <see cref="ICommand{TModel, TSystem}.Run"/> is called with the model state before the
-    /// command, then <see cref="ICommand{TModel, TSystem}.Update"/> advances the model, then
+    /// command, then <see cref="IModelCommand{TModel}.Update"/> advances the model, then
     /// <paramref name="invariant"/> sees the state after it. An exception from a command or the
     /// invariant propagates, which is how a failure is reported.
     /// </remarks>
@@ -69,25 +68,5 @@ public sealed class CommandSequence<TModel, TSystem>
     /// Each command formatted as in a failure report, one per line, or <c>[]</c> when the
     /// sequence is empty.
     /// </returns>
-    public override string ToString()
-    {
-        if (Commands.Count == 0)
-        {
-            return "[]";
-        }
-
-        var builder = new StringBuilder();
-
-        for (var i = 0; i < Commands.Count; i++)
-        {
-            if (i > 0)
-            {
-                builder.AppendLine();
-            }
-
-            builder.Append(ValueFormatter.Format(Commands[i]));
-        }
-
-        return builder.ToString();
-    }
+    public override string ToString() => CommandSequenceFormat.Format(Commands);
 }

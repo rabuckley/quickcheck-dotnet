@@ -29,8 +29,8 @@ public static partial class Generate
     /// <para>
     /// Generation advances the model alone: for each step it calls <paramref name="command"/>
     /// with the current model, draws a command, and calls
-    /// <see cref="ICommand{TModel, TSystem}.Precondition"/> and then
-    /// <see cref="ICommand{TModel, TSystem}.Update"/> on it; <see cref="ICommand{TModel, TSystem}.Run"/>
+    /// <see cref="IModelCommand{TModel}.Precondition"/> and then
+    /// <see cref="IModelCommand{TModel}.Update"/> on it; <see cref="ICommand{TModel, TSystem}.Run"/>
     /// is never called. A command whose precondition is <see langword="false"/> is drawn again,
     /// up to ten times per step, and ten rejections discard the example. To end a sequence in a
     /// state that offers no valid command, return <see langword="null"/> from
@@ -62,5 +62,9 @@ public static partial class Generate
         Func<TModel> initialModel,
         Func<TModel, Generator<ICommand<TModel, TSystem>>?> command,
         int maxLength = 50) =>
-        new CommandSequenceGenerator<TModel, TSystem>(initialModel, command, maxLength);
+        new CommandSequenceGenerator<TModel, ICommand<TModel, TSystem>, CommandSequence<TModel, TSystem>>(
+            initialModel,
+            command,
+            maxLength,
+            static (initialModel, commands) => new CommandSequence<TModel, TSystem>(initialModel, commands));
 }
