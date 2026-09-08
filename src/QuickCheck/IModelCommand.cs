@@ -1,9 +1,7 @@
 namespace QuickCheck;
 
 /// <summary>
-/// Represents what a command sequence generator needs of one operation: whether it may follow
-/// the model state it is generated in, and how it changes that model.
-/// <see cref="ICommand{TModel, TSystem}"/> adds how the operation runs against the real system.
+/// Defines an operation's precondition and model transition.
 /// </summary>
 /// <typeparam name="TModel">The type of the model that stands in for the system during generation.</typeparam>
 public interface IModelCommand<TModel>
@@ -17,9 +15,7 @@ public interface IModelCommand<TModel>
     /// <see langword="false"/>. The default implementation returns <see langword="true"/>.
     /// </returns>
     /// <remarks>
-    /// This method must not change <paramref name="model"/>. A command whose precondition is
-    /// <see langword="false"/> is drawn again, up to ten times per step, before the example is
-    /// discarded.
+    /// This method must not change <paramref name="model"/>.
     /// </remarks>
     bool Precondition(TModel model) => true;
 
