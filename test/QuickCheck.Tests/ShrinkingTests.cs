@@ -1,4 +1,5 @@
 using static QuickCheck.Tests.CommandSequenceTests;
+using AsyncStoreCommand = QuickCheck.IAsyncCommand<System.Collections.Generic.Dictionary<int, int>, QuickCheck.Tests.AsyncCommandSequenceTests.AsyncStore>;
 using StoreCommand = QuickCheck.ICommand<System.Collections.Generic.Dictionary<int, int>, QuickCheck.Tests.CommandSequenceTests.Store>;
 
 namespace QuickCheck.Tests;
@@ -544,6 +545,57 @@ public sealed class ShrinkingTests
         Assert.Equal([new Put(0, 0), new Delete(0)], result.Minimal.Value.Commands);
     }
 
+    /// <summary>The asynchronous store commands over keys wide enough that two of them rarely agree by chance.</summary>
+    private static Generator<AsyncStoreCommand> WideKeyNextAsync(Dictionary<int, int> model) => Generate.Frequency(
+        (3, Generate.Build(Generate.Between(0, 1000), Generate.Between(0, 100), AsyncStoreCommand (key, value) => new AsyncCommandSequenceTests.Put(key, value))),
+        (2, Generate.Between(0, 1000).Select(AsyncStoreCommand (key) => new AsyncCommandSequenceTests.Get(key))));
+
+    [Fact]
+    public async Task Shrinking_WithATwoCommandBugInAnAsynchronousSystem_ShouldFindTheSameMinimumAsTheSynchronousOne()
+    {
+        // Arrange
+        var generator = Generate.AsyncCommandSequence(() => new Dictionary<int, int>(), WideKeyNextAsync);
+        var property = Property.ForAll(generator, sequence => sequence.RunAsync(new AsyncCommandSequenceTests.AsyncStore(StoreBug.DropsLargeKeys)));
+
+        // Act
+        var result = await property.CheckAsync(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([new AsyncCommandSequenceTests.Put(101, 1), new AsyncCommandSequenceTests.Get(101)], result.Minimal.Value.Commands);
+        Assert.Equal(ShrinkLimit.None, result.ShrinkLimit);
+    }
+
+    [Fact]
+    public async Task Shrinking_WithAPreconditionInAnAsynchronousSystem_ShouldNeverRunACommandInAStateItForbids()
+    {
+        // Arrange
+        var tripwireHits = 0;
+        var property = Property.ForAll(AsyncCommandSequenceTests.AsyncStoreSequences(), async sequence =>
+        {
+            try
+            {
+                await sequence.RunAsync(new AsyncCommandSequenceTests.AsyncStore(StoreBug.ReturnsDeletedValues));
+            }
+            catch (PreconditionViolatedException)
+            {
+                tripwireHits++;
+                throw;
+            }
+        });
+
+        // Act
+        var result = await property.CheckAsync(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal(
+            [new AsyncCommandSequenceTests.Put(0, 1), new AsyncCommandSequenceTests.Delete(0), new AsyncCommandSequenceTests.Get(0)],
+            result.Minimal.Value.Commands);
+        Assert.IsType<Xunit.Sdk.EqualException>(result.Minimal.Exception);
+        Assert.Equal(0, tripwireHits);
+    }
+
     private sealed class BoundedStack(int capacity)
     {
         private readonly Stack<int> _values = new();
@@ -721,6 +773,46 @@ public sealed class ShrinkingTests
         // Assert
         Assert.True(result.IsFalsified);
         Assert.Equal([new LargeKey(101)], result.Minimal.Value.Commands);
+    }
+
+    /// <summary>Fails before returning a task, so the failure frame is the plain interface call the loop makes.</summary>
+    private sealed record SmallKeyAsync(int Key) : AsyncStoreCommand
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model) => model;
+
+        public Task RunAsync(Dictionary<int, int> model, AsyncCommandSequenceTests.AsyncStore store)
+        {
+            Assert.True(Key >= 50, "small");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed record LargeKeyAsync(int Key) : AsyncStoreCommand
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model) => model;
+
+        public Task RunAsync(Dictionary<int, int> model, AsyncCommandSequenceTests.AsyncStore store)
+        {
+            Assert.True(Key <= 100, "large");
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task Shrinking_WithTwoAsynchronousCommandsThatFailTheSameWayBeforeTheirFirstAwait_ShouldNotSwapOneForTheOther()
+    {
+        // Arrange
+        var generator = Generate.AsyncCommandSequence(() => new Dictionary<int, int>(), _ => Generate.Frequency(
+            (1, Generate.Between(0, 1000).Select(AsyncStoreCommand (key) => new SmallKeyAsync(key))),
+            (1, Generate.Between(0, 1000).Select(AsyncStoreCommand (key) => new LargeKeyAsync(key)))));
+        var property = Property.ForAll(generator, sequence => sequence.RunAsync(new AsyncCommandSequenceTests.AsyncStore()));
+
+        // Act
+        var result = await property.CheckAsync(Seeded);
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([new LargeKeyAsync(101)], result.Minimal.Value.Commands);
     }
 
     [Fact]
