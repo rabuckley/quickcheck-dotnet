@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using AsyncCommand = QuickCheck.IAsyncCommand<System.Collections.Generic.Dictionary<int, int>, QuickCheck.Tests.ReadmeTests.AsyncStore>;
 using Command = QuickCheck.ICommand<System.Collections.Generic.Dictionary<int, int>, QuickCheck.Tests.ReadmeTests.Store>;
 
 namespace QuickCheck.Tests;
@@ -69,6 +70,57 @@ public sealed class ReadmeTests
         (3, Generate.Build(Generate.Between(0, 3), Generate.Between(0, 100), Command (key, value) => new Put(key, value))),
         (2, Generate.Between(0, 3).Select(Command (key) => new Get(key))),
         (1, Generate.Between(0, 3).Select(Command (key) => new Delete(key))));
+
+    /// <summary>The system of the readme's asynchronous sample: the store behind an awaited API.</summary>
+    public sealed class AsyncStore(bool ignoresOverwrites = false)
+    {
+        private readonly Store _store = new(ignoresOverwrites);
+
+        public int Count => _store.Count;
+
+        public async Task PutAsync(int key, int value)
+        {
+            await Task.Yield();
+            _store.Put(key, value);
+        }
+
+        public async Task<int> GetAsync(int key)
+        {
+            await Task.Yield();
+            return _store.Get(key);
+        }
+
+        public async Task DeleteAsync(int key)
+        {
+            await Task.Yield();
+            _store.Delete(key);
+        }
+    }
+
+    private sealed record PutAsync(int Key, int Value) : AsyncCommand
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model) { model[Key] = Value; return model; }
+        public Task RunAsync(Dictionary<int, int> model, AsyncStore store) => store.PutAsync(Key, Value);
+    }
+
+    private sealed record GetAsync(int Key) : AsyncCommand
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model) => model;
+        public async Task RunAsync(Dictionary<int, int> model, AsyncStore store) =>
+            Assert.Equal(model.GetValueOrDefault(Key), await store.GetAsync(Key));
+    }
+
+    private sealed record DeleteAsync(int Key) : AsyncCommand
+    {
+        public bool Precondition(Dictionary<int, int> model) => model.ContainsKey(Key);
+        public Dictionary<int, int> Update(Dictionary<int, int> model) { model.Remove(Key); return model; }
+        public Task RunAsync(Dictionary<int, int> model, AsyncStore store) => store.DeleteAsync(Key);
+    }
+
+    private static Generator<AsyncCommand> NextAsync(Dictionary<int, int> model) => Generate.Frequency(
+        (3, Generate.Build(Generate.Between(0, 3), Generate.Between(0, 100), AsyncCommand (key, value) => new PutAsync(key, value))),
+        (2, Generate.Between(0, 3).Select(AsyncCommand (key) => new GetAsync(key))),
+        (1, Generate.Between(0, 3).Select(AsyncCommand (key) => new DeleteAsync(key))));
 
     /// <summary>The system of the readme's handle sample: real handles are indices into a list.</summary>
     public sealed class Files
@@ -414,6 +466,32 @@ public sealed class ReadmeTests
             + "    Put { Key = 0, Value = 1 }" + Environment.NewLine
             + "    Get { Key = 0 }",
             result.ToString().Split(Environment.NewLine + "    threw ")[0].Split(Environment.NewLine, 2)[1]);
+        Assert.True(replayed.IsFalsified);
+        Assert.Equal(result.Original.Value.ToString(), replayed.Original!.Value.ToString());
+    }
+
+    [Fact]
+    public Task ReadmeSample_WithAsynchronousStoreCommands_ShouldPassAgainstACorrectStore() =>
+        Property.ForAll(
+            Generate.AsyncCommandSequence(() => new Dictionary<int, int>(), NextAsync),
+            sequence => sequence.RunAsync(new AsyncStore(), (model, store) => Assert.Equal(model.Count, store.Count)))
+        .AssertAsync();
+
+    [Fact]
+    public async Task ReadmeSample_WithAnAsynchronousStoreThatIgnoresOverwrites_ShouldShrinkToThreeCommandsAndReplay()
+    {
+        // Arrange
+        var property = Property.ForAll(
+            Generate.AsyncCommandSequence(() => new Dictionary<int, int>(), NextAsync),
+            sequence => sequence.RunAsync(new AsyncStore(ignoresOverwrites: true), (model, store) => Assert.Equal(model.Count, store.Count)));
+
+        // Act
+        var result = await property.CheckAsync(new CheckOptions { Seed = 2024 });
+        var replayed = await property.CheckAsync(new CheckOptions { Replay = result.Replay });
+
+        // Assert
+        Assert.True(result.IsFalsified);
+        Assert.Equal([new PutAsync(0, 0), new PutAsync(0, 1), new GetAsync(0)], result.Minimal.Value.Commands);
         Assert.True(replayed.IsFalsified);
         Assert.Equal(result.Original.Value.ToString(), replayed.Original!.Value.ToString());
     }

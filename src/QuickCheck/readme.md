@@ -68,6 +68,7 @@ Generate.Build(genA, genB, (a, b) => new Foo(a, b))   // one value from each, co
 Generate.Sequence(genA, genB)       // one value from each, as an array; any number of generators of one type
 Generate.Dictionary(keys, values)   // distinct keys; see Collection sizes
 Generate.CommandSequence(() => model, model => commands)   // operations against a model; see Stateful testing
+Generate.AsyncCommandSequence(() => model, model => commands)   // the same, for a system whose operations are awaited
 Generate.DateTime()                 // mostly 1900-2100, often round times, sometimes the bounds; DateTime(min, max) for a range
 Generate.DateOnly()                 // mostly 1900-2100, sometimes the bounds
 Generate.TimeOnly()                 // often round, sometimes the bounds
@@ -412,9 +413,55 @@ static Generator<ICommand<Handles, Files>> Next(Handles model) => Generate.Frequ
 
 `Files` is the system under test with a `Dictionary<int, FileHandle>` from model id to real handle beside it. `Open` knows its id because `Run` sees the model before the command, where `Next` is the id `Update` is about to assign. The open ids are listed newest first because `Elements` shrinks towards its first item: a command that refers to the newest handle lets the shrinker delete the earlier `Open`s, where one that refers to the oldest keeps them all. The `-1` placeholder keeps the generator the same shape when nothing is open, and the precondition rejects it.
 
+### Asynchronous systems
+
+Use `IAsyncCommand<TModel, TSystem>` for asynchronous operations. It has the same `Precondition` and `Update` members as `ICommand`, with `Task RunAsync(model, system)` in place of `Run`. Generate sequences with `Generate.AsyncCommandSequence`.
+
+`sequence.RunAsync(system, invariant)` awaits each command, updates the model, then checks the invariant. The invariant runs before the first command too, and may be synchronous or return a `Task`. Each operation completes before the next begins. Pass the returned task directly to `Property.ForAll`:
+
+```csharp
+using Command = QuickCheck.IAsyncCommand<Dictionary<int, int>, AsyncStore>;
+
+sealed record Put(int Key, int Value) : Command
+{
+    public Dictionary<int, int> Update(Dictionary<int, int> model) { model[Key] = Value; return model; }
+    public Task RunAsync(Dictionary<int, int> model, AsyncStore store) => store.PutAsync(Key, Value);
+}
+
+sealed record Get(int Key) : Command
+{
+    public Dictionary<int, int> Update(Dictionary<int, int> model) => model;
+    public async Task RunAsync(Dictionary<int, int> model, AsyncStore store) =>
+        Assert.Equal(model.GetValueOrDefault(Key), await store.GetAsync(Key));
+}
+
+sealed record Delete(int Key) : Command
+{
+    public bool Precondition(Dictionary<int, int> model) => model.ContainsKey(Key);
+    public Dictionary<int, int> Update(Dictionary<int, int> model) { model.Remove(Key); return model; }
+    public Task RunAsync(Dictionary<int, int> model, AsyncStore store) => store.DeleteAsync(Key);
+}
+
+static Generator<Command> Next(Dictionary<int, int> model) => Generate.Frequency(
+    (3, Generate.Build(Generate.Between(0, 3), Generate.Between(0, 100), Command (key, value) => new Put(key, value))),
+    (2, Generate.Between(0, 3).Select(Command (key) => new Get(key))),
+    (1, Generate.Between(0, 3).Select(Command (key) => new Delete(key))));
+
+[Fact]
+public Task Async_store_agrees_with_a_dictionary() =>
+    Property.ForAll(
+        Generate.AsyncCommandSequence(() => new Dictionary<int, int>(), Next),
+        sequence => sequence.RunAsync(new AsyncStore(), (model, store) => Assert.Equal(model.Count, store.Count)))
+    .AssertAsync();
+```
+
+A command that needs a `CancellationToken` can obtain it from its system object. The check's cancellation token is not passed to commands.
+
+`Precondition` and `Update` are now declared on `IModelCommand<TModel>`, the base of both command interfaces. Existing explicit implementations must change their qualifier from `ICommand<TModel, TSystem>` to `IModelCommand<TModel>`. Implicit implementations need no changes.
+
 ### Your own loop
 
-When `Run` does not fit, iterate `sequence.Commands` yourself: a scheduler over several replicas with a channel to drop messages from, an asynchronous system, a system that must be torn down in a `finally`. The guarantees are the sequence's, not `Run`'s: every command satisfied its precondition in the model state before it, and shrinking finds the shortest failing prefix whatever loop runs it.
+Iterate `sequence.Commands` to control execution yourself, for example to schedule operations across replicas. Each command satisfied its precondition during generation. Shrinking still removes commands and simplifies their arguments while preserving the failure.
 
 ```csharp
 foreach (var command in sequence.Commands)
@@ -428,7 +475,7 @@ foreach (var command in sequence.Commands)
 }
 ```
 
-With the xUnit adapter, a `[Property]` parameter of type `CommandSequence<TModel, TSystem>` takes its generator from a `[Generator(nameof(...))]` attribute, as any other type does.
+With the xUnit adapter, a `[Property]` parameter of type `CommandSequence<TModel, TSystem>` or `AsyncCommandSequence<TModel, TSystem>` takes its generator from a `[Generator(nameof(...))]` attribute, as any other type does.
 
 ### Statistics over sequences
 
