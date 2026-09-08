@@ -270,6 +270,8 @@ This is how you keep a found bug checked. A replay token names an example by its
 
 A report formats its counterexample for reading, not for pasting. Integers, `bool`, `char`, strings, tuples and collections print as C# you can copy into `Example` as it stands. A record, `DateTime` or `decimal` does not, and neither do the floating-point edges: `NaN` and the infinities print as `NaN`, `Infinity` and `-Infinity`, and `-0.0` prints as `-0`, which reads back as positive zero. Write the literal yourself for those.
 
+Exceptions caught while formatting a counterexample print as `<Name threw ExceptionType: message>` in the value's slot. A record member whose getter throws prints `<threw ExceptionType: message>` in that member's slot. During expansion, a reference type encountered again within its own expansion prints `<cycle>`, and nesting deeper than `ValueFormatter.MaxDepth` levels prints `…`.
+
 An explicit example:
 
 - is checked on top of `RunCount` rather than out of it, so pinning one never shortens the generated run;

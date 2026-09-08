@@ -349,7 +349,7 @@ public sealed class PropertyResult<T>
             builder.Append("    threw ")
                 .Append(exception.GetType().FullName)
                 .Append(": ")
-                .Append(exception.Message.Replace("\n", "\n    ", StringComparison.Ordinal));
+                .Append(ValueFormatter.SafeMessage(exception).Replace("\n", "\n    ", StringComparison.Ordinal));
         }
     }
 

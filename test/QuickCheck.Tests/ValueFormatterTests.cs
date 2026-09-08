@@ -23,6 +23,35 @@ public sealed class ValueFormatterTests
 
     private sealed record Circle(int Radius, string Name) : Shape(Name);
 
+    private sealed class Explosive
+    {
+        public override string ToString() => throw new InvalidOperationException("boom");
+    }
+
+    private sealed record Faulty(int Before)
+    {
+        public int Broken => throw new NotSupportedException("no");
+
+        public int After => 2;
+    }
+
+    private sealed record Node(int Id)
+    {
+        public Node? Next;
+    }
+
+    private sealed class ThrowingMessageException : Exception
+    {
+        public override string Message => throw new InvalidOperationException("message");
+    }
+
+    private static IEnumerable<int> Countdown()
+    {
+        yield return 3;
+        yield return 2;
+        throw new InvalidOperationException("stalled");
+    }
+
     [Fact]
     public void Format_WithRecords_ShouldExpandTheirMembersAndFormatNestedValues()
     {
@@ -130,5 +159,96 @@ public sealed class ValueFormatterTests
 
         // Assert
         Assert.Equal("custom", formatted);
+    }
+
+    [Fact]
+    public void Format_WithThrowingToString_ShouldPrintThePlaceholderInItsSlot()
+    {
+        // Arrange
+        var items = new object[] { 1, new Explosive(), 3 };
+
+        // Act
+        var formatted = ValueFormatter.Format(items);
+
+        // Assert
+        Assert.Equal("[1, <Explosive threw InvalidOperationException: boom>, 3]", formatted);
+    }
+
+    [Fact]
+    public void Format_WithThrowingMember_ShouldKeepTheRecordsOtherMembers()
+    {
+        // Act
+        var formatted = ValueFormatter.Format(new Faulty(1));
+
+        // Assert
+        Assert.Equal("Faulty { Before = 1, Broken = <threw NotSupportedException: no>, After = 2 }", formatted);
+    }
+
+    [Fact]
+    public void Format_WithThrowingEnumerator_ShouldReplaceThePartialCollection()
+    {
+        // Act
+        var formatted = ValueFormatter.Format((1, Countdown()));
+
+        // Assert
+        Assert.Matches(@"^\(1, <\S+ threw InvalidOperationException: stalled>\)$", formatted);
+    }
+
+    [Fact]
+    public void Format_WithThrowingExceptionMessage_ShouldDescribeTheExceptionByType()
+    {
+        // Act
+        var formatted = ValueFormatter.Format(new object[] { new Explosive() });
+
+        // Assert
+        Assert.Equal("[<Explosive threw InvalidOperationException: boom>]", formatted);
+        Assert.Equal("<Message threw>", ValueFormatter.SafeMessage(new ThrowingMessageException()));
+    }
+
+    [Fact]
+    public void Format_WithSelfContainingValues_ShouldPrintCycleWhereTheyRecur()
+    {
+        // Arrange
+        var list = new List<object>();
+        list.Add(list);
+        var first = new Node(1);
+        var second = new Node(2) { Next = first };
+        first.Next = second;
+
+        // Act & Assert
+        Assert.Equal("[<cycle>]", ValueFormatter.Format(list));
+        Assert.Equal("Node { Id = 1, Next = Node { Id = 2, Next = <cycle> } }", ValueFormatter.Format(first));
+    }
+
+    [Fact]
+    public void Format_WithASharedReference_ShouldExpandItEachTime()
+    {
+        // Arrange
+        // Only an ancestor counts as a cycle: the same object under two siblings is printed twice.
+        var shared = new List<int> { 1 };
+
+        // Act
+        var formatted = ValueFormatter.Format(new[] { shared, shared });
+
+        // Assert
+        Assert.Equal("[[1], [1]]", formatted);
+    }
+
+    [Fact]
+    public void Format_WithNestingPastMaxDepth_ShouldTruncateRatherThanOverflow()
+    {
+        // Arrange
+        object nested = new List<object>();
+
+        for (var i = 0; i < 10_000; i++)
+        {
+            nested = new List<object> { nested };
+        }
+
+        // Act
+        var formatted = ValueFormatter.Format(nested);
+
+        // Assert
+        Assert.Equal(new string('[', ValueFormatter.MaxDepth) + "…" + new string(']', ValueFormatter.MaxDepth), formatted);
     }
 }

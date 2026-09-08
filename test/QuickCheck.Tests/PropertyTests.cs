@@ -2,6 +2,11 @@ namespace QuickCheck.Tests;
 
 public sealed class PropertyTests
 {
+    private sealed class Unprintable
+    {
+        public override string ToString() => throw new InvalidOperationException("unprintable");
+    }
+
     [Fact]
     public void Check_WithPassingProperty_ShouldRunTheRequestedNumberOfExamples()
     {
@@ -41,6 +46,20 @@ public sealed class PropertyTests
         Assert.True(result.IsFalsified);
         Assert.NotEmpty(result.Original.Value);
         Assert.Equal([1], result.Minimal.Value);
+    }
+
+    [Fact]
+    public void Assert_WithCounterexampleWhoseToStringThrows_ShouldStillThrowTheReport()
+    {
+        // Arrange
+        var property = Property.ForAll(Generate.Constant(new Unprintable()), static _ => false);
+
+        // Act
+        var exception = Assert.Throws<PropertyFailedException>(() => property.Assert(new CheckOptions { Seed = 1 }));
+
+        // Assert
+        Assert.Contains("Minimal counterexample: <Unprintable threw InvalidOperationException: unprintable>", exception.Message);
+        Assert.Contains("Replay = Replay.Parse(\"1:", exception.Message);
     }
 
     [Fact]

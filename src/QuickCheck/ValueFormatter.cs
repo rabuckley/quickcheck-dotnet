@@ -12,9 +12,21 @@ namespace QuickCheck;
 /// collections and records, and prints <see langword="null"/> explicitly, because the default
 /// <c>ToString</c> of such a value is either uninformative or does not format what it contains.
 /// </summary>
+/// <remarks>
+/// Exceptions caught while formatting a value produce <c>&lt;Name threw ExceptionType: message&gt;</c>
+/// in its place. A record member whose getter throws prints <c>&lt;threw ExceptionType: message&gt;</c>
+/// in that member's slot. During expansion, a reference type encountered again within its own
+/// expansion prints <c>&lt;cycle&gt;</c>, and nesting past <see cref="MaxDepth"/> prints <c>…</c>.
+/// </remarks>
 public static class ValueFormatter
 {
     private const int MaxCollectionItems = 100;
+
+    /// <summary>
+    /// The number of nested tuples, collections, pairs and records a value is expanded through
+    /// before the rest prints as <c>…</c>.
+    /// </summary>
+    public const int MaxDepth = 64;
 
     /// <summary>
     /// Renders <paramref name="value"/> as it appears in failure reports.
@@ -26,91 +38,282 @@ public static class ValueFormatter
     /// </remarks>
     public static string Format(object? value)
     {
-        var builder = new StringBuilder();
-        Append(builder, value);
-        return builder.ToString();
+        var rendering = new Rendering();
+        rendering.Append(value);
+        return rendering.ToString();
     }
 
-    private static void Append(StringBuilder builder, object? value)
+    /// <summary>
+    /// One <see cref="Format"/> call: the text so far and the objects currently being expanded,
+    /// so a value that contains itself is recognised and a throw inside a value is confined to it.
+    /// </summary>
+    private sealed class Rendering
     {
-        switch (value)
+        private readonly StringBuilder _builder = new();
+        private readonly HashSet<object> _ancestors = new(ReferenceEqualityComparer.Instance);
+        private int _depth;
+
+        public override string ToString() => _builder.ToString();
+
+        public void Append(object? value)
         {
-            case null:
-                builder.Append("null");
-                break;
+            var start = _builder.Length;
 
-            case string text:
-                AppendQuoted(builder, text, '"');
-                break;
+            try
+            {
+                AppendValue(value);
+            }
+            catch (Exception exception)
+            {
+                // Whatever the value managed to print before throwing is discarded so the
+                // placeholder stands alone rather than completing a half-written expansion.
+                _builder.Length = start;
+                AppendThrew(value?.GetType().Name, exception);
+            }
+        }
 
-            case char character:
-                AppendQuoted(builder, character.ToString(), '\'');
-                break;
+        private void AppendValue(object? value)
+        {
+            switch (value)
+            {
+                case null:
+                    _builder.Append("null");
+                    break;
 
-            case bool flag:
-                builder.Append(flag ? "true" : "false");
-                break;
+                case string text:
+                    AppendQuoted(text, '"');
+                    break;
 
-            // The default formats drop the fraction (DateTime) or everything past the minute (TimeOnly),
-            // which would print a value one tick after midnight as midnight. The F specifiers omit a
-            // zero fraction, so round values stay short.
-            case DateTime dateTime:
-                builder.Append(dateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.FFFFFFFK", CultureInfo.InvariantCulture));
-                break;
+                case char character:
+                    AppendQuoted(character.ToString(), '\'');
+                    break;
 
-            case DateTimeOffset dateTimeOffset:
-                builder.Append(dateTimeOffset.ToString("yyyy-MM-dd'T'HH:mm:ss.FFFFFFFzzz", CultureInfo.InvariantCulture));
-                break;
+                case bool flag:
+                    _builder.Append(flag ? "true" : "false");
+                    break;
 
-            case DateOnly date:
-                builder.Append(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
-                break;
+                // The default formats drop the fraction (DateTime) or everything past the minute (TimeOnly),
+                // which would print a value one tick after midnight as midnight. The F specifiers omit a
+                // zero fraction, so round values stay short.
+                case DateTime dateTime:
+                    _builder.Append(dateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.FFFFFFFK", CultureInfo.InvariantCulture));
+                    break;
 
-            case TimeOnly time:
-                builder.Append(time.ToString("HH:mm:ss.FFFFFFF", CultureInfo.InvariantCulture));
-                break;
+                case DateTimeOffset dateTimeOffset:
+                    _builder.Append(dateTimeOffset.ToString("yyyy-MM-dd'T'HH:mm:ss.FFFFFFFzzz", CultureInfo.InvariantCulture));
+                    break;
 
-            case IFormattable formattable:
-                builder.Append(formattable.ToString(format: null, CultureInfo.InvariantCulture));
-                break;
+                case DateOnly date:
+                    _builder.Append(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                    break;
 
-            case ITuple tuple:
-                builder.Append('(');
+                case TimeOnly time:
+                    _builder.Append(time.ToString("HH:mm:ss.FFFFFFF", CultureInfo.InvariantCulture));
+                    break;
 
-                for (var i = 0; i < tuple.Length; i++)
+                case IFormattable formattable:
+                    _builder.Append(formattable.ToString(format: null, CultureInfo.InvariantCulture));
+                    break;
+
+                case ITuple tuple:
+                    AppendExpanded(tuple, AppendTuple);
+                    break;
+
+                case IEnumerable items:
+                    AppendExpanded(items, AppendCollection);
+                    break;
+
+                case not null when AsArray(value) is { } array:
+                    AppendExpanded(value, _ => AppendCollection(array));
+                    break;
+
+                case not null when AsKeyValuePair(value) is { } pair:
+                    AppendExpanded(value, _ => AppendPair(pair));
+                    break;
+
+                case not null when HasSynthesizedToString(value.GetType()):
+                    AppendExpanded(value, AppendRecord);
+                    break;
+
+                default:
+                    _builder.Append(value);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Runs <paramref name="expand"/> with <paramref name="container"/> registered as an
+        /// ancestor of whatever it prints, or prints the cycle or depth placeholder instead.
+        /// The ancestor set tracks reference types only; value types, including recurring
+        /// boxed structs, rely on the depth cap.
+        /// </summary>
+        private void AppendExpanded<TContainer>(TContainer container, Action<TContainer> expand)
+            where TContainer : notnull
+        {
+            if (_depth == MaxDepth)
+            {
+                _builder.Append('…');
+                return;
+            }
+
+            var isReference = !container.GetType().IsValueType;
+
+            if (isReference && !_ancestors.Add(container))
+            {
+                _builder.Append("<cycle>");
+                return;
+            }
+
+            _depth++;
+
+            try
+            {
+                expand(container);
+            }
+            finally
+            {
+                _depth--;
+
+                if (isReference)
                 {
-                    if (i > 0)
-                    {
-                        builder.Append(", ");
-                    }
+                    _ancestors.Remove(container);
+                }
+            }
+        }
 
-                    Append(builder, tuple[i]);
+        private void AppendTuple(ITuple tuple)
+        {
+            _builder.Append('(');
+
+            for (var i = 0; i < tuple.Length; i++)
+            {
+                if (i > 0)
+                {
+                    _builder.Append(", ");
                 }
 
-                builder.Append(')');
-                break;
+                Append(tuple[i]);
+            }
 
-            case IEnumerable items:
-                AppendCollection(builder, items);
-                break;
+            _builder.Append(')');
+        }
 
-            case not null when AsArray(value) is { } array:
-                AppendCollection(builder, array);
-                break;
+        private void AppendPair((object? Key, object? Value) pair)
+        {
+            Append(pair.Key);
+            _builder.Append(": ");
+            Append(pair.Value);
+        }
 
-            case not null when AsKeyValuePair(value) is { } pair:
-                Append(builder, pair.Key);
-                builder.Append(": ");
-                Append(builder, pair.Value);
-                break;
+        /// <summary>
+        /// Mirrors the record's own <c>Name { Member = value, … }</c> layout, base members first, but
+        /// formats each member with this formatter. A member whose getter throws prints the
+        /// placeholder in its slot so the record's other members still reach the report.
+        /// </summary>
+        private void AppendRecord(object record)
+        {
+            _builder.Append(record.GetType().Name).Append(" {");
+            var index = 0;
 
-            case not null when HasSynthesizedToString(value.GetType()):
-                AppendRecord(builder, value);
-                break;
+            foreach (var (name, read) in PrintedMembers(record))
+            {
+                _builder.Append(index++ == 0 ? " " : ", ").Append(name).Append(" = ");
 
-            default:
-                builder.Append(value);
-                break;
+                object? value;
+
+                try
+                {
+                    value = read();
+                }
+                catch (Exception exception)
+                {
+                    AppendThrew(subject: null, exception);
+                    continue;
+                }
+
+                Append(value);
+            }
+
+            _builder.Append(" }");
+        }
+
+        private void AppendCollection(IEnumerable items)
+        {
+            _builder.Append('[');
+            var count = 0;
+
+            foreach (var item in items)
+            {
+                if (count == MaxCollectionItems)
+                {
+                    _builder.Append(", …");
+                    break;
+                }
+
+                if (count > 0)
+                {
+                    _builder.Append(", ");
+                }
+
+                Append(item);
+                count++;
+            }
+
+            _builder.Append(']');
+        }
+
+        private void AppendQuoted(string text, char quote)
+        {
+            _builder.Append(quote);
+
+            foreach (var character in text)
+            {
+                switch (character)
+                {
+                    case '\\': _builder.Append(@"\\"); break;
+                    case '\n': _builder.Append(@"\n"); break;
+                    case '\r': _builder.Append(@"\r"); break;
+                    case '\t': _builder.Append(@"\t"); break;
+                    case '\0': _builder.Append(@"\0"); break;
+                    case var c when c == quote: _builder.Append('\\').Append(c); break;
+                    case var c when char.IsControl(c) || char.IsSurrogate(c):
+                        _builder.Append(@"\u").Append(((int)c).ToString("X4", CultureInfo.InvariantCulture));
+                        break;
+                    default: _builder.Append(character); break;
+                }
+            }
+
+            _builder.Append(quote);
+        }
+
+        /// <summary>
+        /// Prints <c>&lt;subject threw Type: message&gt;</c>, unwrapping the reflection wrapper a
+        /// throwing getter arrives in so the report names the exception the value's own code threw.
+        /// </summary>
+        private void AppendThrew(string? subject, Exception exception)
+        {
+            var cause = exception is TargetInvocationException { InnerException: { } inner } ? inner : exception;
+
+            _builder.Append('<');
+
+            if (subject is not null)
+            {
+                _builder.Append(subject).Append(' ');
+            }
+
+            _builder.Append("threw ").Append(cause.GetType().Name).Append(": ").Append(SafeMessage(cause)).Append('>');
+        }
+    }
+
+    internal static string SafeMessage(Exception exception)
+    {
+        try
+        {
+            return exception.Message;
+        }
+        catch (Exception)
+        {
+            return "<Message threw>";
         }
     }
 
@@ -191,24 +394,6 @@ public static class ValueFormatter
     }
 
     /// <summary>
-    /// Mirrors the record's own <c>Name { Member = value, … }</c> layout, base members first, but
-    /// formats each member with this formatter.
-    /// </summary>
-    private static void AppendRecord(StringBuilder builder, object record)
-    {
-        builder.Append(record.GetType().Name).Append(" {");
-        var index = 0;
-
-        foreach (var (name, value) in PrintedMembers(record))
-        {
-            builder.Append(index++ == 0 ? " " : ", ").Append(name).Append(" = ");
-            Append(builder, value);
-        }
-
-        builder.Append(" }");
-    }
-
-    /// <summary>
     /// The members a synthesized <c>ToString</c> prints: every public instance property and
     /// field, base members before derived ones.
     /// </summary>
@@ -217,21 +402,21 @@ public static class ValueFormatter
         "IL2075:MembersOnUnannotatedType",
         Justification = "Best-effort report formatting: a member removed by trimming is merely "
             + "omitted from the report.")]
-    private static IEnumerable<(string Name, object? Value)> PrintedMembers(object record)
+    private static IEnumerable<(string Name, Func<object?> Read)> PrintedMembers(object record)
     {
         const BindingFlags PublicInstance = BindingFlags.Public | BindingFlags.Instance;
         var type = record.GetType();
 
         var properties = type.GetProperties(PublicInstance)
             .Where(static property => property.CanRead && property.GetIndexParameters().Length == 0)
-            .Select(property => (Depth: InheritanceDepth(property.DeclaringType), property.Name, Value: property.GetValue(record)));
+            .Select(property => (Depth: InheritanceDepth(property.DeclaringType), property.Name, Read: new Func<object?>(() => property.GetValue(record))));
 
         var fields = type.GetFields(PublicInstance)
-            .Select(field => (Depth: InheritanceDepth(field.DeclaringType), field.Name, Value: field.GetValue(record)));
+            .Select(field => (Depth: InheritanceDepth(field.DeclaringType), field.Name, Read: new Func<object?>(() => field.GetValue(record))));
 
         return properties.Concat(fields)
             .OrderBy(static member => member.Depth)
-            .Select(static member => (member.Name, member.Value));
+            .Select(static member => (member.Name, member.Read));
     }
 
     private static int InheritanceDepth(Type? type)
@@ -244,54 +429,5 @@ public static class ValueFormatter
         }
 
         return depth;
-    }
-
-    private static void AppendCollection(StringBuilder builder, IEnumerable items)
-    {
-        builder.Append('[');
-        var count = 0;
-
-        foreach (var item in items)
-        {
-            if (count == MaxCollectionItems)
-            {
-                builder.Append(", …");
-                break;
-            }
-
-            if (count > 0)
-            {
-                builder.Append(", ");
-            }
-
-            Append(builder, item);
-            count++;
-        }
-
-        builder.Append(']');
-    }
-
-    private static void AppendQuoted(StringBuilder builder, string text, char quote)
-    {
-        builder.Append(quote);
-
-        foreach (var character in text)
-        {
-            switch (character)
-            {
-                case '\\': builder.Append(@"\\"); break;
-                case '\n': builder.Append(@"\n"); break;
-                case '\r': builder.Append(@"\r"); break;
-                case '\t': builder.Append(@"\t"); break;
-                case '\0': builder.Append(@"\0"); break;
-                case var c when c == quote: builder.Append('\\').Append(c); break;
-                case var c when char.IsControl(c) || char.IsSurrogate(c):
-                    builder.Append(@"\u").Append(((int)c).ToString("X4", CultureInfo.InvariantCulture));
-                    break;
-                default: builder.Append(character); break;
-            }
-        }
-
-        builder.Append(quote);
     }
 }
