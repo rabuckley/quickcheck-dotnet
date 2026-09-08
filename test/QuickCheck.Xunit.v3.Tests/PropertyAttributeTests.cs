@@ -60,6 +60,37 @@ public sealed class PropertyAttributeTests(ITestOutputHelper output)
             (2, Generate.Build(Generate.Between(0, 3), Generate.Between(0, 100), ICommand<Dictionary<int, int>, Store> (key, value) => new Put(key, value))),
             (1, Generate.Between(0, 3).Select(ICommand<Dictionary<int, int>, Store> (key) => new Get(key)))));
 
+    public sealed record PutAsync(int Key, int Value) : IAsyncCommand<Dictionary<int, int>, Store>
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model)
+        {
+            model[Key] = Value;
+            return model;
+        }
+
+        public async Task RunAsync(Dictionary<int, int> model, Store store)
+        {
+            await Task.Yield();
+            store.Put(Key, Value);
+        }
+    }
+
+    public sealed record GetAsync(int Key) : IAsyncCommand<Dictionary<int, int>, Store>
+    {
+        public Dictionary<int, int> Update(Dictionary<int, int> model) => model;
+
+        public async Task RunAsync(Dictionary<int, int> model, Store store)
+        {
+            await Task.Yield();
+            Assert.Equal(model.GetValueOrDefault(Key), store.Get(Key));
+        }
+    }
+
+    private static Generator<AsyncCommandSequence<Dictionary<int, int>, Store>> AsyncStoreSequences { get; } =
+        Generate.AsyncCommandSequence(() => new Dictionary<int, int>(), static _ => Generate.Frequency(
+            (2, Generate.Build(Generate.Between(0, 3), Generate.Between(0, 100), IAsyncCommand<Dictionary<int, int>, Store> (key, value) => new PutAsync(key, value))),
+            (1, Generate.Between(0, 3).Select(IAsyncCommand<Dictionary<int, int>, Store> (key) => new GetAsync(key)))));
+
     [Property]
     public void Property_WithIntStringAndListParameters_ShouldGenerateThemByDefault(int x, string s, List<byte> bytes)
     {
@@ -132,6 +163,16 @@ public sealed class PropertyAttributeTests(ITestOutputHelper output)
     {
         Assert.NotEmpty(sequence.Commands);
         sequence.Run(new Store());
+    }
+
+    [Property(Seed = 42)]
+    public async Task Property_WithAsyncCommandSequenceFromNamedGenerator_ShouldAwaitItAgainstTheSystem(
+        [Generator(nameof(AsyncStoreSequences))] AsyncCommandSequence<Dictionary<int, int>, Store> sequence)
+    {
+        Assert.NotEmpty(sequence.Commands);
+        var store = new Store();
+        var final = await sequence.RunAsync(store);
+        Assert.All(final, entry => Assert.Equal(entry.Value, store.Get(entry.Key)));
     }
 
     [Property(Generators = typeof(Generators))]
