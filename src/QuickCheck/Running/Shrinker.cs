@@ -19,13 +19,13 @@ internal sealed class Shrinker<T>
     private readonly ShrinkBudget _budget;
     private readonly CancellationToken _cancellationToken;
 
-    private ExampleRun<T> _best;
+    private ExampleRun<T>.Failed _best;
     private int _shrinks;
 
     public Shrinker(
         Generator<T> generator,
         Func<T, ValueTask<bool>> body,
-        ExampleRun<T> failure,
+        ExampleRun<T>.Failed failure,
         CheckOptions options,
         CancellationToken cancellationToken)
     {
@@ -549,12 +549,14 @@ internal sealed class Shrinker<T>
         // members that a constructor guard relates; that GenerationFailed run is not a failure, so
         // the candidate is rejected and the best so far still stands. Only an unedited sequence
         // reports a throwing generator, from PropertyRunner.
-        if (!run.IsFailure || run.Key != _key || !IsSimpler(run.Choices, _best.Choices))
+        if (run is not ExampleRun<T>.Failed failure
+            || failure.Key != _key
+            || !IsSimpler(failure.Choices, _best.Choices))
         {
             return false;
         }
 
-        _best = run;
+        _best = failure;
         _shrinks++;
         return true;
     }

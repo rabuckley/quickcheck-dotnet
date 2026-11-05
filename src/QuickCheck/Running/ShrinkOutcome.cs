@@ -5,7 +5,7 @@ namespace QuickCheck.Running;
 /// </summary>
 internal sealed record ShrinkOutcome<T>
 {
-    public required ExampleRun<T> Minimal { get; init; }
+    public required ExampleRun<T>.Failed Minimal { get; init; }
 
     public required int Attempts { get; init; }
 

@@ -1,13 +1,8 @@
+using System.Diagnostics;
 using QuickCheck.Choices;
 
 namespace QuickCheck.Running;
 
-/// <summary>
-/// Runs a property's body on one example, generated or explicit, recording it as an
-/// <see cref="ExampleRun{T}"/>. Every invocation of a property body goes through here, so the
-/// statistics sink is installed and the discard, cancellation and failure ladder is applied in one
-/// place.
-/// </summary>
 internal static class ExampleRun
 {
     /// <summary>
@@ -32,7 +27,7 @@ internal static class ExampleRun
         }
         catch (DiscardException)
         {
-            return WithoutBody(ExampleStatus.Discarded);
+            return new ExampleRun<T>.Discarded { Choices = source.Recorded };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -40,58 +35,30 @@ internal static class ExampleRun
         }
         catch (Exception exception)
         {
-            return WithoutBody(ExampleStatus.GenerationFailed, exception);
+            return new ExampleRun<T>.GenerationFailed { Choices = source.Recorded, Exception = exception };
         }
 
-        var outcome = await RunBodyAsync(value, body, cancellationToken).ConfigureAwait(false);
+        var outcome = await ExecuteAsync(value, body, cancellationToken).ConfigureAwait(false);
 
-        return new ExampleRun<T>
+        return outcome switch
         {
-            Status = outcome.Status,
-            Choices = source.Recorded,
-            Spans = source.Spans,
-            Statistics = outcome.Statistics,
-            Exception = outcome.Exception
-        };
-
-        // A run that ended inside the generator keeps the choices drawn before it stopped, which
-        // are what replay it.
-        ExampleRun<T> WithoutBody(ExampleStatus status, Exception? exception = null) => new()
-        {
-            Status = status,
-            Choices = source.Recorded,
-            Spans = source.Spans,
-            Exception = exception
+            BodyOutcome.Passed passed => new ExampleRun<T>.Passed
+            {
+                Choices = source.Recorded,
+                Statistics = passed.Statistics
+            },
+            BodyOutcome.Discarded => new ExampleRun<T>.Discarded { Choices = source.Recorded },
+            BodyOutcome.Failed failed => new ExampleRun<T>.Failed
+            {
+                Choices = source.Recorded,
+                Spans = source.Spans,
+                Exception = failed.Exception
+            },
+            _ => throw new UnreachableException()
         };
     }
 
-    /// <summary>
-    /// Runs <paramref name="body"/> on an explicit example, a value the caller supplied rather than
-    /// one a generator produced.
-    /// </summary>
-    /// <remarks>
-    /// The run carries no choices, because no generator made any. That makes it unshrinkable — a
-    /// <see cref="Shrinker{T}"/> given one would report convergence having tried nothing — so an
-    /// explicit failure is reported as given instead of being shrunk.
-    /// </remarks>
-    public static async ValueTask<ExampleRun<T>> ExecuteAsync<T>(
-        T value,
-        Func<T, ValueTask<bool>> body,
-        CancellationToken cancellationToken)
-    {
-        var outcome = await RunBodyAsync(value, body, cancellationToken).ConfigureAwait(false);
-
-        return new ExampleRun<T>
-        {
-            Status = outcome.Status,
-            Choices = [],
-            Spans = [],
-            Statistics = outcome.Statistics,
-            Exception = outcome.Exception
-        };
-    }
-
-    private static async ValueTask<BodyOutcome> RunBodyAsync<T>(
+    public static async ValueTask<BodyOutcome> ExecuteAsync<T>(
         T value,
         Func<T, ValueTask<bool>> body,
         CancellationToken cancellationToken)
@@ -115,11 +82,13 @@ internal static class ExampleRun
                 Property.CurrentStatistics.Value = null;
             }
 
-            return new BodyOutcome(holds ? ExampleStatus.Passed : ExampleStatus.Failed, statistics);
+            return holds
+                ? new BodyOutcome.Passed { Statistics = statistics }
+                : new BodyOutcome.Failed { Exception = null };
         }
         catch (DiscardException)
         {
-            return new BodyOutcome(ExampleStatus.Discarded, statistics);
+            return new BodyOutcome.Discarded();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -127,12 +96,7 @@ internal static class ExampleRun
         }
         catch (Exception exception)
         {
-            return new BodyOutcome(ExampleStatus.Failed, statistics, exception);
+            return new BodyOutcome.Failed { Exception = exception };
         }
     }
-
-    private readonly record struct BodyOutcome(
-        ExampleStatus Status,
-        ExampleStatistics Statistics,
-        Exception? Exception = null);
 }

@@ -80,25 +80,28 @@ internal sealed class PropertyRunner<T>
 
             var pinned = await ExampleRun.ExecuteAsync(value, _body, cancellationToken).ConfigureAwait(false);
 
-            switch (pinned.Status)
+            switch (pinned)
             {
-                case ExampleStatus.Passed:
+                case BodyOutcome.Passed:
                     // Counted apart from `passed`, so a pin neither shortens the generated run nor
                     // contributes to the percentages, whose denominator is TestsRun.
                     explicitExamples = explicitExamples with { Run = explicitExamples.Run + 1 };
                     break;
 
-                case ExampleStatus.Discarded:
+                case BodyOutcome.Discarded:
                     explicitExamples = explicitExamples with { Discarded = explicitExamples.Discarded + 1 };
                     break;
 
-                case ExampleStatus.Failed:
+                case BodyOutcome.Failed failed:
                     // Built here rather than through FalsifyAsync: an explicit example carries no
                     // choices, so there is nothing for the shrinker to reduce.
                     return PropertyResult.FalsifiedByExample(
                         seed,
                         explicitExamples,
-                        new Counterexample<T>(value, pinned.Exception, isExplicit: true));
+                        new Counterexample<T>(value, failed.Exception, isExplicit: true));
+
+                default:
+                    throw new UnreachableException();
             }
         }
 
@@ -113,11 +116,11 @@ internal sealed class PropertyRunner<T>
             var example = await ExampleRun.ExecuteAsync(source, _generator, _body, cancellationToken)
                 .ConfigureAwait(false);
 
-            switch (example.Status)
+            switch (example)
             {
-                case ExampleStatus.Passed:
+                case ExampleRun<T>.Passed passedRun:
                     passed++;
-                    statistics.Merge(example.Statistics!);
+                    statistics.Merge(passedRun.Statistics);
 
                     if (confidence is null)
                     {
@@ -158,7 +161,7 @@ internal sealed class PropertyRunner<T>
 
                     break;
 
-                case ExampleStatus.Discarded:
+                case ExampleRun<T>.Discarded:
                     discards++;
 
                     // The budget grows with the run so that a long coverage check is not exhausted
@@ -171,9 +174,9 @@ internal sealed class PropertyRunner<T>
 
                     break;
 
-                case ExampleStatus.Failed:
+                case ExampleRun<T>.Failed failure:
                     return await FalsifyAsync(
-                        example,
+                        failure,
                         new Replay(seed, run),
                         passed,
                         discards,
@@ -182,15 +185,18 @@ internal sealed class PropertyRunner<T>
                         options,
                         cancellationToken).ConfigureAwait(false);
 
-                case ExampleStatus.GenerationFailed:
+                case ExampleRun<T>.GenerationFailed generationFailure:
                     return PropertyResult.GenerationFailed<T>(
                         seed,
                         passed,
                         discards,
                         explicitExamples,
                         new Replay(seed, run),
-                        example.Exception!,
+                        generationFailure.Exception,
                         Snapshot());
+
+                default:
+                    throw new UnreachableException();
             }
         }
 
@@ -212,10 +218,10 @@ internal sealed class PropertyRunner<T>
 
         // A replayed example reports its labels but is never held to a coverage requirement: one
         // example cannot meet a distribution.
-        return example.Status switch
+        return example switch
         {
-            ExampleStatus.Failed => await FalsifyAsync(
-                example,
+            ExampleRun<T>.Failed failure => await FalsifyAsync(
+                failure,
                 replay,
                 testsRun: 0,
                 discards: 0,
@@ -223,22 +229,23 @@ internal sealed class PropertyRunner<T>
                 PropertyStatistics.Empty,
                 options,
                 cancellationToken).ConfigureAwait(false),
-            ExampleStatus.Passed => PropertyResult.Passed<T>(
+            ExampleRun<T>.Passed passed => PropertyResult.Passed<T>(
                 replay.Seed,
                 testsRun: 1,
                 discards: 0,
                 ExplicitExampleCounts.None,
-                SingleExampleStatistics(example.Statistics!)),
-            ExampleStatus.GenerationFailed => PropertyResult.GenerationFailed<T>(
+                SingleExampleStatistics(passed.Statistics)),
+            ExampleRun<T>.GenerationFailed generationFailure => PropertyResult.GenerationFailed<T>(
                 replay.Seed,
                 testsRun: 0,
                 discards: 0,
                 ExplicitExampleCounts.None,
                 replay,
-                example.Exception!,
+                generationFailure.Exception,
                 PropertyStatistics.Empty),
-            _ => PropertyResult.Exhausted<T>(
-                replay.Seed, testsRun: 0, discards: 1, ExplicitExampleCounts.None, PropertyStatistics.Empty)
+            ExampleRun<T>.Discarded => PropertyResult.Exhausted<T>(
+                replay.Seed, testsRun: 0, discards: 1, ExplicitExampleCounts.None, PropertyStatistics.Empty),
+            _ => throw new UnreachableException()
         };
 
         static PropertyStatistics SingleExampleStatistics(ExampleStatistics example)
@@ -250,7 +257,7 @@ internal sealed class PropertyRunner<T>
     }
 
     private async ValueTask<PropertyResult<T>> FalsifyAsync(
-        ExampleRun<T> failure,
+        ExampleRun<T>.Failed failure,
         Replay replay,
         int testsRun,
         int discards,
@@ -278,6 +285,6 @@ internal sealed class PropertyRunner<T>
 
     // Replaying the choices gives the value as the body first saw it; the body may have mutated
     // the object since.
-    private Counterexample<T> Regenerated(ExampleRun<T> run) =>
+    private Counterexample<T> Regenerated(ExampleRun<T>.Failed run) =>
         new(ChoiceSource.FromPrefix(run.Choices).Draw(_generator), run.Exception, isExplicit: false);
 }
