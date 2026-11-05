@@ -191,23 +191,9 @@ public sealed class ChoiceSource
 
         ThrowIfFull();
 
-        var index = _recorded.Count;
-        ulong value;
+        var value = _random is not null && _random.NextDouble() < probabilityOfTrue ? 1UL : 0UL;
 
-        if (_prefix is not null && index < _prefix.Count)
-        {
-            value = Math.Min(_prefix[index].Value, 1);
-        }
-        else if (_random is not null)
-        {
-            value = _random.NextDouble() < probabilityOfTrue ? 1UL : 0UL;
-        }
-        else
-        {
-            value = 0;
-        }
-
-        return Record(value, 1) == 1;
+        return ReplayOrRecord(value, 1) == 1;
     }
 
     private void ThrowIfFull()
