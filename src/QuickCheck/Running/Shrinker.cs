@@ -211,8 +211,9 @@ internal sealed class Shrinker<T>
                 break;
             }
 
-            // An accepted candidate may have shortened the sequence out from
-            // under the groups that follow it; those are stale, the rest are not.
+            // Replay can shorten or restructure the sequence, invalidating later groups.
+            // In-range groups can still be tried: TryAcceptAsync requires a simpler example
+            // with the same failure.
             if (indices.Any(index => index >= _best.Choices.Count))
             {
                 continue;
